@@ -12,28 +12,13 @@
 
 #include <EEPROM.h>
 
-HMWModule::HMWModule(HMWRS485* _hmwrs485) {
+HMWModule::HMWModule(HMWRS485* _hmwrs485, byte _deviceType, char* _deviceSerial, unsigned long _deviceAddress ) {
   hmwrs485 = _hmwrs485;
-
-  // Set the device type from bootloader section to global var hmwDeviceType
-  //1 byte starts at 0x7FF1
-  // TODO: Das funktioniert noch nicht ueber die Sache mit dem Bootloader
-  // TODO: Das zumindest irgendwie konfigurierbar machen
-  // Momentan hardcoded auf 0x1B, also HMW-IO-12-FM
-  deviceType = 0x1B;                // cpeek(&H7FF1);
-
-  // Set the device serial from bootloader section to global var hmwDeviceSerial
-  // 10 bytes starts at 0x7FF2
-  // TODO: Das funktioniert noch nicht ueber die Sache mit dem Bootloader
-  // TODO: Das zumindest irgendwie konfigurierbar machen
-  char* serNum = "HHB2703111";
-  memcpy(deviceSerial, serNum, 10); // cpeek(&H7FF2), cpeek(&H7FF3), ...
-
-  // Set the device adress from bootloader section to global var hmwRxSenderAdress.
-  // 4 bytes starts at 0x7FFC
-  // TODO: Das funktioniert noch nicht ueber die Sache mit dem Bootloader
-  // TODO: Das zumindest irgendwie konfigurierbar machen
-    hmwrs485->txSenderAddress = 0x42380123;  //cpeek(&H7FFC), cpeek(&H7FFD),...
+  deviceType = _deviceType;
+  // TODO: Keine Ahnung, ob es genau 10 Zeichen sein muessen
+  memcpy(deviceSerial, _deviceSerial, 10);
+  // TODO: Entscheiden, ob die device address zum Protokoll oder zum Modul gehoert
+  hmwrs485->txSenderAddress = _deviceAddress;
 }
 
 HMWModule::~HMWModule() {
@@ -181,5 +166,27 @@ void HMWModule::processEventKey(){
 		// TODO
    };
 
+   // "Key Pressed" ueber broadcast senden
+   void HMWModule::broadcastKeyEvent(byte channel, byte keyPressNum, byte longPress) {
+	   hmwrs485->txTargetAddress = 0xFFFFFFFF;  // broadcast
+	   hmwrs485->txFrameControlByte = 0xF8;     // control byte
+	   hmwrs485->txFrameDataLength = 0x04;      // Length
+	   hmwrs485->txFrameData[0] = 0x4B;         // 'K'
+	   hmwrs485->txFrameData[1] = channel;      // Sensornummer
+	   hmwrs485->txFrameData[2] = 0;            // Zielaktor
+	   // TODO: Counter
+	   hmwrs485->txFrameData[3] = (longPress ? 3 : 2) + (keyPressNum << 2);
+	   hmwrs485->sendFrame();
+   };
 
-
+   // "i-Message" ueber broadcast senden
+     void HMWModule::broadcastInfoMessage(byte channel, unsigned int info) {
+  	   hmwrs485->txTargetAddress = 0xFFFFFFFF;  // broadcast
+  	   hmwrs485->txFrameControlByte = 0xF8;     // control byte
+  	   hmwrs485->txFrameDataLength = 0x04;      // Length
+  	   hmwrs485->txFrameData[0] = 0x69;         // 'i'
+  	   hmwrs485->txFrameData[1] = channel;      // Sensornummer
+  	   hmwrs485->txFrameData[2] = info / 0x100;
+  	   hmwrs485->txFrameData[3] = info & 0xFF;
+  	   hmwrs485->sendFrame();
+     };

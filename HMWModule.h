@@ -19,10 +19,13 @@
 
 class HMWModule {
 public:
-	HMWModule(HMWRS485*);
+	HMWModule(HMWRS485*, byte, char*, unsigned long); // rs485, device type, serial, address
 	virtual ~HMWModule();
 
 	void processEvents();
+
+	void broadcastKeyEvent(byte, byte, byte = 0);  // channel, keyPressNum, long/short (long = 1)
+	void broadcastInfoMessage(byte, unsigned int);   // channel, info
 
 	byte deviceType;        // device type @ 0x7FF1 in FlashRom  TODO: Not really...
 	char deviceSerial[10];    // string of device serial @ 0x7FF2 - 0x7FFB in FlashRom TODO: Not really...

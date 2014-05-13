@@ -13,7 +13,9 @@
 //Hardwarebeschreibung:
 // =====================
 //
-// Kompatibel mit HMW-LC-Sw2-DR
+// Kompatibel mit HMW-IO-12-FM (RS485 12-fach I/O-Modul Unterputzmontage)
+// Aber nur mit 8 I/O (Also sozusagen ein HMW-IO-8-FM)
+//
 // Pinsettings for Arduino Uno
 //
 // D0: RXD, normaler Serieller Port fuer Debug-Zwecke
@@ -22,10 +24,7 @@
 // D3: TXD, DI des RS485-Treiber
 // D4: Direction (DE/-RE) Driver/Receiver Enable vom RS485-Treiber
 //
-// D5: Taster 1   / Kanal 1
-// D6: Taster 2   / Kanal 2
-// D7: Schalter 1 / Kanal 3
-// D8: Schalter 2 / Kanal 4
+// D5-D12: I/O 01 bis 08
 // D13: Status-LED
 
 // Die Firmware funktioniert mit dem Standard-Uno Bootloader, im
@@ -49,19 +48,24 @@
 #define RS485_RXD 2
 #define RS485_TXD 3
 #define RS485_TXEN 4
-#define I01 5
-#define I02 6
-#define O03 7
-#define O04 8
+#define IO01 5
+#define IO02 6
+#define IO03 7
+#define IO04 8
+#define IO05 9
+#define IO06 10
+#define IO07 11
+#define IO08 12
 #define LED 13
 
-#define CHANNEL_IO_COUNT 4
+#define CHANNEL_IO_COUNT 8
 #define CHANNEL_IO_BYTES 1  //CHANNEL_IO_COUNT / 8
 
 // Das folgende Define kann benutzt werden, wenn ueber die
 // Kanaele "geloopt" werden soll
 // als Define, damit es zentral definiert werden kann, aber keinen (globalen) Speicherplatz braucht
-#define CHANNEL_PORTS byte channelPorts[CHANNEL_IO_COUNT] = {I01, I02, O03, O04};
+#define CHANNEL_PORTS byte channelPorts[CHANNEL_IO_COUNT] = {IO01, IO02, IO03, IO04, IO05, IO06, IO07, IO08};
+
 
 
 // --- EEPROM Variablen für Parametersets ---
@@ -86,7 +90,7 @@
 // TODO: in initDefault entsprechend setzen
 // TODO: Obwohl der Parameter davor (directLinkDeactivated) als word (2 bytes)
 //       definiert ist, ist die Adresse hier nur um 1 groesser. Da stimmt was nicht.
-// #define EPA_channelBehaviour 0x0007  // 2 bytes ??
+#define EPA_channelBehaviour 0x0007  // 2 bytes
 
 // ist der Kanal ein Taster oder Schalter und ist der Eingang gelocked?
 // (die ersten 24 Bits) Ich vermute die Bits werden Paarweise ausgewertet
@@ -95,28 +99,40 @@
 // TODO: Hier ist einiges unklar:
 //    24 Bits aber nur ein Byte? Oder CHANNEL_IO_COUNT Bytes?
 //    ...oder tatsaechlich nur ein Byte und die Bits gelten fuer jeweils 2 Ein-/Ausgaenge?
-// #define EPA_channelInputTypeLocked 0x0009  // CHANNEL_IO_COUNT bytes ? Oder doch nur 1 byte?
+#define EPA_channelInputTypeLocked 0x0009  // CHANNEL_IO_COUNT bytes ? Oder doch nur 1 byte?
 
 // Sekunden nach der ein Tastendruck als Lang erkannt wird
 // Pro kanal ein Byte Min: 0.4s, Max: 5s, 0,4 => Default => 0 ???
 // TODO: in initDefault entsprechend setzen
-#define EPA_channelLongPressTime 0x0010  // CHANNEL_IO_COUNT bytes (hier 2 fuer input?)
+#define EPA_channelLongPressTime 0x0010  // CHANNEL_IO_COUNT bytes
 
+
+
+
+// Port Directions
+// TODO: Das sollte aenderbar werden
+// TODO: Warum gibt's das nochmal als EEPROM-Parameter? (EPA_channelParamBehaviour)
+// TODO: ...und was ist dann portStatus unten?
+byte ioDir = B11111111;  // default is all on output
+
+
+// Port Config, hier ein Byte fuer 8 Ein-/Ausgaenge
+// Byte 0: 0 -> Ein- 1 -> Ausgang
+byte portConfig[CHANNEL_IO_BYTES];
 // Port Status, d.h. Port ist auf 0 oder 1
 byte portStatus[CHANNEL_IO_BYTES];
 
-unsigned int keyPressTimer[2];   // Wir haben zwei Inputs
+unsigned int keyPressTimer[CHANNEL_IO_COUNT];
 // TODO: wird wirklich int gebraucht oder tut's auch byte?
-unsigned int keyLongPressTime[2];
+unsigned int keyLongPressTime[CHANNEL_IO_COUNT];
 byte loggingTime;
 
+
+#define RS485_TXEN 4
 SoftwareSerial rs485(RS485_RXD, RS485_TXD); // RX, TX
 HMWRS485 hmwrs485(&rs485, RS485_TXEN, &Serial);
-// device type: 0x11 = HMW-LC-Sw2-DR
-// serial number
-// address
-// TODO: serial number und address sollte von woanders kommen
-HMWModule hmwmodule(&hmwrs485, 0x11, "HHB2703111", 0x42380123);
+HMWModule hmwmodule(&hmwrs485);
+
 
 // Read all inputs/outputs
 // setzt Bits in portStatus[]
@@ -134,6 +150,8 @@ void setModuleConfig() {
   byte setModuleConfig_byte;
   unsigned int setModuleConfig_word;
   unsigned long setModuleConfig_dword;
+// Array of channel -> port assignment
+  CHANNEL_PORTS
 
 // loggingTime (Sekunden * 10)
    loggingTime = EEPROM.read(EPA_loggingTime);
@@ -150,19 +168,30 @@ void setModuleConfig() {
    }
 
 // Zeit fuer "langer" Tastendruck pro Channel
-   for(byte i = 0; i < 2; i++) {
+   for(byte i = 0; i < CHANNEL_IO_COUNT; i++) {
 	   keyLongPressTime[i] = EEPROM.read(EPA_channelLongPressTime + i);
    }
+
+   // Input oder Output?
+   for(byte i = 0; i < CHANNEL_IO_BYTES; i++) {
+      // Channelstatus einlesen
+      portConfig[i] = EEPROM.read(EPA_channelBehaviour + i);
+   };
 
 // set input/output
 // Input Pins arbeiten mit PULLUP, d.h. muessen per Taster
 // auf Masse gezogen werden
-  pinMode(I01,INPUT_PULLUP);
-  pinMode(I02,INPUT_PULLUP);
-  pinMode(O03,OUTPUT);
-  digitalWrite(O03,LOW);
-  pinMode(O04,OUTPUT);
-  digitalWrite(O04,LOW);
+   for(byte i = 0; i < CHANNEL_IO_COUNT; i++){
+	  if(bitRead(portConfig[i/8],i%8)){
+		  // output
+		  pinMode(channelPorts[i],OUTPUT);
+		  digitalWrite(channelPorts[i],LOW);  // auf 0 setzen
+
+	  }else{
+		  // input mit aktiviertem Pullup
+		  pinMode(channelPorts[i],INPUT_PULLUP);
+	  }
+   }
 }
 
 
@@ -185,7 +214,7 @@ void setup()
 // 0000111111100011
 // channelParam_behaviour = &H0FE3
 
-  hmwrs485.debug("huhu\n");
+  hmwrs485.debug("huhu");
 }
 
 // The loop function is called in an endless loop
@@ -194,12 +223,9 @@ void loop()
 // TODO: Alles in loop
 // TODO: Long/short key
 
-   static byte keyPress[2] = {0,0};
-   static byte outstatus = 0;
-
 // Daten empfangen (tut nichts, wenn keine Daten vorhanden)
    hmwrs485.receive();
- // Check
+// Check
      if(hmwrs485.frameComplete) {
         if(hmwrs485.targetAddress == hmwrs485.txSenderAddress || hmwrs485.targetAddress == 0xFFFFFFFF){
           hmwrs485.parseFrame();
@@ -213,7 +239,7 @@ void loop()
   readPins();
 
 // TODO: Das folgende ist nur fuer Testzwecke
-// Alle 20 Sekunden eine Nachricht schicken
+// Alle 20 Sekunden eine Announce-Nachricht schicken
   // hmwTxTargetAdress(4)                   the target adress
   // hmwTxFrameControllByte                 the controll byte
   // hmwTxSenderAdress(4)                   the sender adress
@@ -225,22 +251,19 @@ void loop()
   if(time-lasttime >= 20000){
     lasttime = time;
 
-    // 2 buttons
-    for(byte i = 0; i < 2; i++)
-      // if(bitRead(portStatus[i/8],i%8))
-      {
-    	keyPress[i]++;
-        hmwmodule.broadcastKeyEvent(i,keyPress[i]);
-      };
-    // 2 Ausgaenge
-    for(byte i = 2; i < 4; i++){
-      // if(bitRead(portStatus[i/8],i%8))
-      if(outstatus)
-        hmwmodule.broadcastInfoMessage(i, 0xC800);
-      else
-        hmwmodule.broadcastInfoMessage(i, 0x0000);
-    }
-    outstatus = !outstatus;
+    hmwrs485.txTargetAddress = 0xFFFFFFFF;  // broadcast
+    hmwrs485.txFrameControlByte = 0xF8;     // control byte
+    hmwrs485.txFrameDataLength = 0x12;      // Length
+    hmwrs485.txFrameData[0] = 0x41;         // 'A'
+    hmwrs485.txFrameData[1] = 0x00;         // Sensornummer
+    hmwrs485.txFrameData[2] = hmwmodule.deviceType;
+    hmwrs485.txFrameData[3] = 0x00;         // Theoretisch Hardware-Version
+    hmwrs485.txFrameData[4] = MODULE_FIRMWARE_VERSION / 0x100;
+    hmwrs485.txFrameData[5] = MODULE_FIRMWARE_VERSION & 0xFF;
+    memcpy(&(hmwrs485.txFrameData[6]), hmwmodule.deviceSerial, 10);
+
+    hmwrs485.sendFrame();
+
   }
 
 // TODO: ueber den Bus schicken. Wann?

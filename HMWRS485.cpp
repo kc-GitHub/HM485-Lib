@@ -178,9 +178,11 @@ void HMWRS485::sendFrame() {
       unsigned int crc16checksum = 0xFFFF;
 
  // TODO: Das Folgende nimmt an, dass das ACK zur letzten empfangenen Sendung gehoert
-      byte txSeqNum = (frameControlByte >> 1) & 0x03;
-      txFrameControlByte &= 0x9F;
-      txFrameControlByte |= (txSeqNum << 5);
+      if(txTargetAddress != 0xFFFFFFFF){
+        byte txSeqNum = (frameControlByte >> 1) & 0x03;
+        txFrameControlByte &= 0x9F;
+        txFrameControlByte |= (txSeqNum << 5);
+      };
 
       debug("\nSending\n");
       digitalWrite(txEnablePin, HIGH);
@@ -282,6 +284,14 @@ unsigned int HMWRS485::crc16Shift(byte newByte , unsigned int oldCrc) {
 }  // crc16Shift
 
 
+/* int freeRam ()
+{
+  extern int __heap_start, *__brkval;
+  int v;
+  return (int) &v - (__brkval == 0 ? (int) &__heap_start : (int) __brkval);
+}; */
+
+
 // RS485 empfangen
 // Muss zyklisch aufgerufen werden
 // TODO: Als Interrupt-Routine? Dann geht's nicht mehr per SoftSerial
@@ -302,8 +312,10 @@ void HMWRS485::receive(){
 
 // TODO: Kann sich hier zu viel "anstauen", so dass das while vielleicht
 //       nach ein paar Millisekunden unterbrochen werden sollte?
+
   while(serial->available()) {
-    byte rxByte = serial->read();    // von Serial oder SoftSerial
+
+	  byte rxByte = serial->read();    // von Serial oder SoftSerial
 
     // Debug
     if( rxByte == 0xFD ) debug("\nReceiving \n");
@@ -396,3 +408,5 @@ void HMWRS485::receive(){
 void HMWRS485::debug(char* msg) {
 	if(debugSerial) debugSerial->print(msg);
 }
+
+
