@@ -17,9 +17,17 @@
 #define MODULE_FIRMWARE_VERSION 1
 
 
+// Abstrakte Basisklasse mit Callbacks aus dem Modul
+class HMWDeviceBase {
+  public:
+	virtual void setLevel(byte,unsigned int) = 0;  // channel, level
+	virtual unsigned int getLevel(byte) = 0;                // channel, returns level
+};
+
+
 class HMWModule {
 public:
-	HMWModule(HMWRS485*, byte, char*, unsigned long); // rs485, device type, serial, address
+	HMWModule(HMWDeviceBase*, HMWRS485*, byte, char*, unsigned long); // rs485, device type, serial, address
 	virtual ~HMWModule();
 
 	void processEvents();
@@ -32,6 +40,7 @@ public:
 
 private:
 	HMWRS485* hmwrs485;
+	HMWDeviceBase* device;
 
 	void processEventKey();
     void processEventSetLevel();

@@ -110,13 +110,7 @@ unsigned int keyPressTimer[2];   // Wir haben zwei Inputs
 unsigned int keyLongPressTime[2];
 byte loggingTime;
 
-SoftwareSerial rs485(RS485_RXD, RS485_TXD); // RX, TX
-HMWRS485 hmwrs485(&rs485, RS485_TXEN, &Serial);
-// device type: 0x11 = HMW-LC-Sw2-DR
-// serial number
-// address
-// TODO: serial number und address sollte von woanders kommen
-HMWModule hmwmodule(&hmwrs485, 0x11, "HHB2703111", 0x42380123);
+
 
 // Read all inputs/outputs
 // setzt Bits in portStatus[]
@@ -166,6 +160,41 @@ void setModuleConfig() {
 }
 
 
+// Klasse fuer Callbacks vom Protokoll
+class HMWDevice : public HMWDeviceBase {
+  public:
+	void setLevel(byte channel,unsigned int level) {
+	  // everything in the right limits?
+	  if(channel != 2 && channel != 3) return;
+      if(level > 255) return;
+      // now set pin
+      CHANNEL_PORTS
+      if(level == 0xFF) {   // toggle
+    	digitalWrite(channelPorts[channel], !digitalRead(channelPorts[channel]));
+      }else if(level) // on
+    	digitalWrite(channelPorts[channel], HIGH);
+      else
+    	digitalWrite(channelPorts[channel], LOW);
+	}
+
+	unsigned int getLevel(byte channel) {
+      // everything in the right limits?
+	  if(channel >= CHANNEL_IO_COUNT) return 0;
+	  // read
+	  CHANNEL_PORTS
+	  if(digitalRead(channelPorts[channel])) return 0xC800;
+	  else return 0;
+	};
+};
+
+
+SoftwareSerial rs485(RS485_RXD, RS485_TXD); // RX, TX
+HMWRS485 hmwrs485(&rs485, RS485_TXEN, &Serial);
+// device type: 0x11 = HMW-LC-Sw2-DR
+// serial number
+// address
+// TODO: serial number und address sollte von woanders kommen
+HMWModule hmwmodule(new HMWDevice(), &hmwrs485, 0x11, "HHB2703111", 0x42380123);
 
 //The setup function is called once at startup of the sketch
 void setup()
@@ -195,7 +224,7 @@ void loop()
 // TODO: Long/short key
 
    static byte keyPress[2] = {0,0};
-   static byte outstatus = 0;
+   // static byte outstatus = 0;
 
 // Daten empfangen (tut nichts, wenn keine Daten vorhanden)
    hmwrs485.receive();
@@ -233,14 +262,14 @@ void loop()
         hmwmodule.broadcastKeyEvent(i,keyPress[i]);
       };
     // 2 Ausgaenge
-    for(byte i = 2; i < 4; i++){
+    /* for(byte i = 2; i < 4; i++){
       // if(bitRead(portStatus[i/8],i%8))
       if(outstatus)
         hmwmodule.broadcastInfoMessage(i, 0xC800);
       else
         hmwmodule.broadcastInfoMessage(i, 0x0000);
     }
-    outstatus = !outstatus;
+    outstatus = !outstatus; */
   }
 
 // TODO: ueber den Bus schicken. Wann?

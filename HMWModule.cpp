@@ -12,7 +12,8 @@
 
 #include <EEPROM.h>
 
-HMWModule::HMWModule(HMWRS485* _hmwrs485, byte _deviceType, char* _deviceSerial, unsigned long _deviceAddress ) {
+HMWModule::HMWModule(HMWDeviceBase* _device, HMWRS485* _hmwrs485, byte _deviceType, char* _deviceSerial, unsigned long _deviceAddress ) {
+  device = _device;
   hmwrs485 = _hmwrs485;
   deviceType = _deviceType;
   // TODO: Keine Ahnung, ob es genau 10 Zeichen sein muessen
@@ -29,6 +30,9 @@ HMWModule::~HMWModule() {
 void HMWModule::processEvents() {
       unsigned int adrStart;
       byte sendAck;
+
+      // gibt es was zu verarbeiten?
+      if(hmwrs485->frameDataLength <= 0) return;
 
       hmwrs485->txTargetAddress = hmwrs485->senderAddress;
       hmwrs485->txFrameControlByte = 0x78;
@@ -139,7 +143,7 @@ void HMWModule::processEvents() {
 
       if(sendAck == 2){
          // prepare info Frame
-    	 hmwrs485->txFrameData[1] = 'i';
+    	 hmwrs485->txFrameData[0] = 'i';
          sendAck = 0;
       };
       if(sendAck == 0){
@@ -155,7 +159,15 @@ void HMWModule::processEventKey(){
 };
 
    void HMWModule::processEventSetLevel(){
-		// TODO
+	 // tell the hardware
+     device->setLevel(hmwrs485->frameData[1], hmwrs485->frameData[2]);
+     // get what the hardware did and send it back
+     hmwrs485->txFrameDataLength = 0x04;      // Length
+     hmwrs485->txFrameData[0] = 0x69;         // 'i'
+     hmwrs485->txFrameData[1] = hmwrs485->frameData[1];      // Sensornummer
+     unsigned int info = device->getLevel(hmwrs485->frameData[1]);
+     hmwrs485->txFrameData[2] = info / 0x100;
+     hmwrs485->txFrameData[3] = info & 0xFF;
    };
 
    void HMWModule::processEventGetLevel(){
