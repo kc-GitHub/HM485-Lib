@@ -105,7 +105,6 @@
 // Port Status, d.h. Port ist auf 0 oder 1
 byte portStatus[CHANNEL_IO_BYTES];
 
-unsigned int keyPressTimer[2];   // Wir haben zwei Inputs
 // TODO: wird wirklich int gebraucht oder tut's auch byte?
 unsigned int keyLongPressTime[2];
 byte loggingTime;
@@ -217,60 +216,104 @@ void setup()
   hmwrs485.debug("huhu\n");
 }
 
+
+// Tasten
+void handleKeys() {
+// TODO: Vielleicht besser eine Klasse HMWKey oder so anlegen
+  // millis() zum Zeitpunkt eines Tastendrucks
+  // verwendet zum Entprellen, lange Tastendruecke und wiederholtes Senden kurzer Tastendruecke
+  static unsigned long keyPressedMillis[2] = {0,0};   // Wir haben zwei Inputs
+  static byte keyPressNum[2] = {0,0};
+  static byte sentLong[2] = {0,0};  // schon "long" gesendet?
+  // wann wurde das letzte mal "short" gesendet?
+  static unsigned long lastSentShort[2] = {0,0};
+
+// TODO: Wiederholtes Senden (alle 300ms) bei "Dauertaste"
+// TODO: Langer Tastendruck
+  for(byte i = 0; i < 2; i++){
+// Taste nicht gedrueckt (negative Logik wegen INPUT_PULLUP)
+   if(bitRead(portStatus[i/8],i%8)){
+	 // Taste war auch vorher nicht gedrueckt kann ignoriert werden
+     // Taste war vorher gedrueckt?
+	 if(keyPressedMillis[i]){
+	   // entprellen, nur senden, wenn laenger als 50ms gedrueckt
+	   // aber noch kein "short" gesendet
+	   if(millis() - keyPressedMillis[i] >= 50 && !lastSentShort[i]){
+	     keyPressNum[i]++;
+// TODO: muss das eigentlich an die Zentrale gehen?
+	     hmwmodule.broadcastKeyEvent(i,keyPressNum[i]);
+	   };
+	   keyPressedMillis[i] = 0;
+	 };
+   }else{
+// Taste gedrueckt
+	 // Taste war vorher schon gedrueckt
+	 if(keyPressedMillis[i]){
+       // muessen wir ein "long" senden?
+	   // TODO: Konfigurierbar
+ 	   if(!sentLong[i] && millis() - keyPressedMillis[i] >= 2000) {
+		  // TODO: hat long und short denselben Zaehler?
+		  keyPressNum[i]++;
+		  // TODO: muss das eigentlich an die Zentrale gehen?
+		  hmwmodule.broadcastKeyEvent(i,keyPressNum[i], true);
+          sentLong[i] = true;
+	   };
+	   // Wiederholte "short"s ?
+	   // TODO: Muesste das nicht konfigurierbar sein?
+	   unsigned long tmp = lastSentShort[i] ? lastSentShort[i] : keyPressedMillis[i];
+       if(millis() - tmp >= 300){
+ 		 keyPressNum[i]++;
+ 		 // TODO: muss das eigentlich an die Zentrale gehen?
+ 		 hmwmodule.broadcastKeyEvent(i,keyPressNum[i]);
+         lastSentShort[i] = millis();
+         if(!lastSentShort[i]) lastSentShort[i] = 1;
+       }
+	 }else{
+	   // Taste war vorher nicht gedrueckt
+	   keyPressedMillis[i] = millis();
+	   lastSentShort[i] = 0;
+	   sentLong[i] = false;
+       // der Teufel ist ein Eichhoernchen
+	   if(!keyPressedMillis[i]) keyPressedMillis[i] = 1;
+	 }
+   }
+  }
+}
+
+
 // The loop function is called in an endless loop
 void loop()
 {
 // TODO: Alles in loop
 // TODO: Long/short key
 
-   static byte keyPress[2] = {0,0};
+
    // static byte outstatus = 0;
 
 // Daten empfangen (tut nichts, wenn keine Daten vorhanden)
    hmwrs485.receive();
  // Check
-     if(hmwrs485.frameComplete) {
-        if(hmwrs485.targetAddress == hmwrs485.txSenderAddress || hmwrs485.targetAddress == 0xFFFFFFFF){
-          hmwrs485.parseFrame();
-          hmwmodule.processEvents();
-        }
-     };
+   if(hmwrs485.frameComplete) {
+      if(hmwrs485.targetAddress == hmwrs485.txSenderAddress || hmwrs485.targetAddress == 0xFFFFFFFF){
+        hmwrs485.parseFrame();
+        hmwmodule.processEvents();
+      }
+   };
 
 // Check Keys
 // Hier werden alle Ein-/Ausgaenge gelesen
 // Pins lesen und nach portStatus[] schreiben
   readPins();
 
-// TODO: Das folgende ist nur fuer Testzwecke
-// Alle 20 Sekunden eine Nachricht schicken
+// Tasten abfragen, entprellen etc.
+  handleKeys();
+
   // hmwTxTargetAdress(4)                   the target adress
   // hmwTxFrameControllByte                 the controll byte
   // hmwTxSenderAdress(4)                   the sender adress
   // hmwTxFrameDataLength                   the length of data to send
   // hmwTxFrameData(MAX_RX_FRAME_LENGTH)    the data array to send
-
-  static unsigned long lasttime = 0;
-  unsigned long time = millis();
-  if(time-lasttime >= 20000){
-    lasttime = time;
-
-    // 2 buttons
-    for(byte i = 0; i < 2; i++)
-      // if(bitRead(portStatus[i/8],i%8))
-      {
-    	keyPress[i]++;
-        hmwmodule.broadcastKeyEvent(i,keyPress[i]);
-      };
-    // 2 Ausgaenge
-    /* for(byte i = 2; i < 4; i++){
-      // if(bitRead(portStatus[i/8],i%8))
-      if(outstatus)
-        hmwmodule.broadcastInfoMessage(i, 0xC800);
-      else
-        hmwmodule.broadcastInfoMessage(i, 0x0000);
-    }
-    outstatus = !outstatus; */
-  }
+}
 
 // TODO: ueber den Bus schicken. Wann?
 
@@ -301,8 +344,6 @@ void loop()
 
         end if
      next */
-
-}
 
 
 
