@@ -31,10 +31,18 @@ void HMWModule::processEvents() {
       unsigned int adrStart;
       byte sendAck;
 
-      // gibt es was zu verarbeiten?
-      if(hmwrs485->frameDataLength <= 0) return;
+      // ACKs werden nicht prozessiert
+      // TODO: Das gehoert eigentlich ins Protokll eine Schicht tiefer
+      if((hmwrs485->frameControlByte & 0x03) == 0x01) return;
 
       hmwrs485->txTargetAddress = hmwrs485->senderAddress;
+      // gibt es was zu verarbeiten?
+      // wenn nicht, dann einfach ein ACK schicken
+      if(hmwrs485->frameDataLength <= 0){
+    	  hmwrs485->sendAck();
+    	  return;
+      }
+
       hmwrs485->txFrameControlByte = 0x78;
 
       sendAck = 1;
@@ -149,8 +157,7 @@ void HMWModule::processEvents() {
       if(sendAck == 0){
     	  hmwrs485->sendFrame();
       }else{
-// TODO: sendAck braucht die Nummer der Nachricht
-//    	  hmwrs485->sendAck();
+    	  hmwrs485->sendAck();
       };
 };
 

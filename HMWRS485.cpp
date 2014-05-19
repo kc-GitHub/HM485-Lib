@@ -59,7 +59,7 @@ HMWRS485::~HMWRS485() {
 // TODO: methods in .h file
 
 void HMWRS485::parseFrame () {
-// TODO: Irgendwo pruefen, dass die Nachricht an uns geht?
+// TODO: Dass die Nachricht an uns geht sollte ggf im Protokoll geprüft werden
 
   byte txSeqNum;
   byte foundCtrl;
@@ -254,9 +254,8 @@ void HMWRS485::sendFrameByte(byte sendByte) {
 // Folgende globale Variablen MUESSEN vorher gesetzt sein:
 // txTargetAdress
 // txSenderAdress
-void HMWRS485::sendAck(byte rxSeqNum) {
-      rxSeqNum = (rxSeqNum & 0x03) << 5;
-      txFrameControlByte = rxSeqNum | 0x19;
+void HMWRS485::sendAck() {
+      txFrameControlByte = 0x19;
       txFrameDataLength = 0;
       sendFrame();
 };

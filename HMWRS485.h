@@ -25,7 +25,7 @@ public:
 
 	void parseFrame();
 	void sendFrame();
-	void sendAck(byte);  // rxSeqNum
+	void sendAck();  // ACK fuer gerade verarbeitete Message senden
 	void debug(char*);
 
 	// Empfangen
