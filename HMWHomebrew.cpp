@@ -221,12 +221,13 @@ void setup()
 void handleKeys() {
 // TODO: Vielleicht besser eine Klasse HMWKey oder so anlegen
   // millis() zum Zeitpunkt eines Tastendrucks
-  // verwendet zum Entprellen, lange Tastendruecke und wiederholtes Senden kurzer Tastendruecke
+  // verwendet zum Entprellen, lange Tastendruecke und wiederholtes Senden langer Tastendruecke
   static unsigned long keyPressedMillis[2] = {0,0};   // Wir haben zwei Inputs
   static byte keyPressNum[2] = {0,0};
-  static byte sentLong[2] = {0,0};  // schon "long" gesendet?
   // wann wurde das letzte mal "short" gesendet?
-  static unsigned long lastSentShort[2] = {0,0};
+  static unsigned long lastSentLong[2] = {0,0};
+
+  long now = millis();
 
 // TODO: Wiederholtes Senden (alle 300ms) bei "Dauertaste"
 // TODO: Langer Tastendruck
@@ -237,8 +238,8 @@ void handleKeys() {
      // Taste war vorher gedrueckt?
 	 if(keyPressedMillis[i]){
 	   // entprellen, nur senden, wenn laenger als 50ms gedrueckt
-	   // aber noch kein "short" gesendet
-	   if(millis() - keyPressedMillis[i] >= 50 && !lastSentShort[i]){
+	   // aber noch kein "long" gesendet
+	   if(now - keyPressedMillis[i] >= 50 && !lastSentLong[i]){
 	     keyPressNum[i]++;
 // TODO: muss das eigentlich an die Zentrale gehen?
 	     hmwmodule.broadcastKeyEvent(i,keyPressNum[i]);
@@ -251,30 +252,24 @@ void handleKeys() {
 	 if(keyPressedMillis[i]){
        // muessen wir ein "long" senden?
 	   // TODO: Konfigurierbar
- 	   if(!sentLong[i] && millis() - keyPressedMillis[i] >= 2000) {
-		  // TODO: hat long und short denselben Zaehler?
+	   if(lastSentLong[i]) {   // schon ein LONG gesendet
+		  if(now - lastSentLong[i] >= 300){  // alle 300ms wiederholen
+			// keyPressNum nicht erhoehen
+			lastSentLong[i] = now ? now : 1; // der Teufel ist ein Eichhoernchen
+			// TODO: muss das eigentlich an die Zentrale gehen?
+			hmwmodule.broadcastKeyEvent(i,keyPressNum[i], true);
+		  };
+	   }else if(millis() - keyPressedMillis[i] >= 2000) {
+		  // erstes LONG
 		  keyPressNum[i]++;
+	      lastSentLong[i] = millis();
 		  // TODO: muss das eigentlich an die Zentrale gehen?
 		  hmwmodule.broadcastKeyEvent(i,keyPressNum[i], true);
-          sentLong[i] = true;
 	   };
-	   // Wiederholte "short"s ?
-	   // TODO: Muesste das nicht konfigurierbar sein?
-	   unsigned long tmp = lastSentShort[i] ? lastSentShort[i] : keyPressedMillis[i];
-       if(millis() - tmp >= 300){
- 		 keyPressNum[i]++;
- 		 // TODO: muss das eigentlich an die Zentrale gehen?
- 		 hmwmodule.broadcastKeyEvent(i,keyPressNum[i]);
-         lastSentShort[i] = millis();
-         if(!lastSentShort[i]) lastSentShort[i] = 1;
-       }
 	 }else{
 	   // Taste war vorher nicht gedrueckt
-	   keyPressedMillis[i] = millis();
-	   lastSentShort[i] = 0;
-	   sentLong[i] = false;
-       // der Teufel ist ein Eichhoernchen
-	   if(!keyPressedMillis[i]) keyPressedMillis[i] = 1;
+	   keyPressedMillis[i] = now ? now : 1; // der Teufel ist ein Eichhoernchen
+	   lastSentLong[i] = 0;
 	 }
    }
   }
@@ -315,63 +310,8 @@ void loop()
   // hmwTxFrameData(MAX_RX_FRAME_LENGTH)    the data array to send
 }
 
-// TODO: ueber den Bus schicken. Wann?
-
-/* TODO...
- * for i = 1 to CANNEL_IO_COUNT
-        if portStatus(i).0 = 0 then                                            ' Port ist Input oder Output
-
-           if portStatus(i).1 = 0 then                                         ' Key am port ist gedrückt
-
-              if keyPressTimer(i) = 0 then
-                 keyPressTimer(i) = 2
-              end if
-
-              if keyPressTimer(i) = 100 then
-                 set portStatus(i).2                                           ' set status long keypress detected
-                 keyPressTimer(i) = 80                                         ' counter für repeated longpress
-                                                                               ' Muss noch validiert werden
-                 debug "longKey " ; i ; " - " ; keyPressTimer(i)
-              end if
-
-           elseif keyPressTimer(i) > 0 then
-              if keyPressTimer(i) > 10 and portStatus(i).2 = 0then
-                 debug "shortKey " ; i ; " - " ; keyPressTimer(i)
-              end if
-              reset portStatus(i).2
-              keyPressTimer(i) = 0
-           end if
-
-        end if
-     next */
 
 
 
-
-/*
- * TODO... '**
- '* isr_timer0
- '*
- '* Config Timer0 = Timer , Prescale = 1024
- '* Timer 0 ist ein 8Bit Timer Bei Prescaler 1024 und 16 Mhz Taktfrequenz des AVR
- '* wird der Interrupt ca 61 mal pro Sekunde aufgerufen. Daher setzen wir den Timer
- '* zu begin der isr auf einen Startwert 100. Der Timer braucht dann für einen Überlauf
- '* nur noch 156 schritte wieter zu zählen. Somit ergibt sich dann ein Interrupt ca. alle 100 ms.
- '*
- '**
- isr_timer0:
-    dim isr_timer0_i as byte
-    timer0 = 100
-'      timer0 = 250
-
-    for isr_timer0_i = 1 to CANNEL_IO_COUNT
-       if keyPressTimer(isr_timer0_i) > 1 then
-          if keyPressTimer(isr_timer0_i) < 65536 then
-             incr keyPressTimer(isr_timer0_i)
-          end if
-       end if
-    next
-
- return */
 
 
