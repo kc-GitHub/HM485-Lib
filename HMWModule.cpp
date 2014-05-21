@@ -35,6 +35,23 @@ void HMWModule::processEvents() {
       // TODO: Das gehoert eigentlich ins Protokll eine Schicht tiefer
       if((hmwrs485->frameControlByte & 0x03) == 0x01) return;
 
+      // Wenn irgendwas von Broadcast kommt, dann gibt es darauf keine
+      // Reaktion, ausser z und Z (und es kommt von der Zentrale)
+      // TODO: Muessen wir pruefen, ob's wirklich von der Zentrale kommt?
+      if(hmwrs485->targetAddress == 0xFFFFFFFF){
+    	switch(hmwrs485->frameData[0]){
+    	  case 'Z':                                                               // End discovery mode
+    	    // reset hmwModuleDiscovering
+    	    // TODO: Discovery mode
+    	    break;
+    	  case 'z':                                                               // start discovery mode
+    	    // set hmwModuleDiscovering
+    	    // TODO: Discovery mode
+    	    break;
+    	  }
+    	  return;
+      };
+
       hmwrs485->txTargetAddress = hmwrs485->senderAddress;
       // gibt es was zu verarbeiten?
       // wenn nicht, dann einfach ein ACK schicken
@@ -92,10 +109,6 @@ void HMWModule::processEvents() {
                }
             };
             break;
-         case 'Z':                                                               // End discovery mode
-            // reset hmwModuleDiscovering
-            // TODO: Discovery mode
-            break;
 
          case 'c':                                                               // Zieladresse löschen?
             // TODO: ???
@@ -130,18 +143,14 @@ void HMWModule::processEvents() {
          case 'v':                                                               // get firmware version
         	hmwrs485->debug("Firmware Version");
             sendAck = 0;
-            hmwrs485->txFrameData[1] = MODULE_FIRMWARE_VERSION / 0x100;
-            hmwrs485->txFrameData[2] = MODULE_FIRMWARE_VERSION & 0xFF;
+            hmwrs485->txFrameData[0] = MODULE_FIRMWARE_VERSION / 0x100;
+            hmwrs485->txFrameData[1] = MODULE_FIRMWARE_VERSION & 0xFF;
             hmwrs485->txFrameDataLength = 2;
             break;
          case 'x':                                                               // Level set
             processEventSetLevel();                                               // Install-Test TODO: ???
             sendAck = 2;
             break;
-         case 'z':                                                               // start discovery mode
-            // set hmwModuleDiscovering
-        	// TODO: Discovery mode
-        	break;
 
          case 'Ë':                                                               // Key-Sim-Event
             processEventKey();
