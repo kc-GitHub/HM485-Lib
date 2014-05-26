@@ -40,6 +40,8 @@
 // TODO: Eigene SoftwareSerial
 #include <SoftwareSerial.h>
 
+// Datenstrukturen fuer Konfiguration
+#include "HMWRegister.h"
 // HM Wired Protokoll
 #include "HMWRS485.h"
 // default module methods
@@ -63,51 +65,15 @@
 // als Define, damit es zentral definiert werden kann, aber keinen (globalen) Speicherplatz braucht
 #define CHANNEL_PORTS byte channelPorts[CHANNEL_IO_COUNT] = {I01, I02, O03, O04};
 
-
-// --- EEPROM Variablen für Parametersets ---
-// Die folgenden Defines sind die Adressen der entsprechenden
-// "Variablen" im EEPROM
-// EPA steht fuer "EEPROM Parameter Address"
-
-// nach der eigestellten Logging Time sendet der Aktor seinen aktuellen Wert
-// zurück an die Zentrale? mit einem "i" - event. Min 0.1 (1), Max 25.5 (255), default 2 (20) Sekunden
-#define EPA_loggingTime 0x0001     // 1 byte
-
-// Die Zentralenadresse wird wohl für die Logging "i" - Events benutzt.
-#define EPA_centralAddress 0x0002  // 4 bytes
-
-// Direktverknüpfungen nicht erlaubt?
-// TODO: Wird noch nicht benutzt. Wozu?
-#define EPA_directLinkDeactivated 0x0006  // 2 bytes
-
-// --- EEPROM Variablen für channels ---
-
-// ist der Kanal Input oder Output (die ersten 12 Bits) (0 => Input => Default ???)
-// TODO: in initDefault entsprechend setzen
-// TODO: Obwohl der Parameter davor (directLinkDeactivated) als word (2 bytes)
-//       definiert ist, ist die Adresse hier nur um 1 groesser. Da stimmt was nicht.
-// #define EPA_channelBehaviour 0x0007  // 2 bytes ??
-
-// ist der Kanal ein Taster oder Schalter und ist der Eingang gelocked?
-// (die ersten 24 Bits) Ich vermute die Bits werden Paarweise ausgewertet
-// Bit 1 pro Paar (1 => Taster => Default ???), Bit 2 pro Paar ( 1 => Locked => 0 Default) ???
-// TODO: InitDefault muss dieses Byte auf 1 setzen
-// TODO: Hier ist einiges unklar:
-//    24 Bits aber nur ein Byte? Oder CHANNEL_IO_COUNT Bytes?
-//    ...oder tatsaechlich nur ein Byte und die Bits gelten fuer jeweils 2 Ein-/Ausgaenge?
-// #define EPA_channelInputTypeLocked 0x0009  // CHANNEL_IO_COUNT bytes ? Oder doch nur 1 byte?
-
-// Sekunden nach der ein Tastendruck als Lang erkannt wird
-// Pro kanal ein Byte Min: 0.4s, Max: 5s, 0,4 => Default => 0 ???
-// TODO: in initDefault entsprechend setzen
-#define EPA_channelLongPressTime 0x0010  // CHANNEL_IO_COUNT bytes (hier 2 fuer input?)
-
 // Port Status, d.h. Port ist auf 0 oder 1
 byte portStatus[CHANNEL_IO_BYTES];
 
 // TODO: wird wirklich int gebraucht oder tut's auch byte?
 unsigned int keyLongPressTime[2];
 byte loggingTime;
+
+// Config
+hmw_config config;
 
 
 
@@ -120,42 +86,6 @@ void readPins() {
 	  // TODO: Check if this really works
 	  bitWrite(portStatus[i/8],i%8,digitalRead(channelPorts[i]));
   }
-}
-
-
-void setModuleConfig() {
-  byte setModuleConfig_byte;
-  unsigned int setModuleConfig_word;
-  unsigned long setModuleConfig_dword;
-
-// loggingTime (Sekunden * 10)
-   loggingTime = EEPROM.read(EPA_loggingTime);
-   if(loggingTime < 1) loggingTime = 20;  // default ist 2 Sekunden
-
-// Zentralenadresse
-   setModuleConfig_dword = EEPROM.read(EPA_centralAddress +3);
-   setModuleConfig_dword = (setModuleConfig_dword << 8) | EEPROM.read(EPA_centralAddress +2);
-   setModuleConfig_dword = (setModuleConfig_dword << 8) | EEPROM.read(EPA_centralAddress +1);
-   setModuleConfig_dword = (setModuleConfig_dword << 8) | EEPROM.read(EPA_centralAddress);
-   if(setModuleConfig_dword == 0){
-	   // 0x00000001, aber es steht eh 0 drin, also nur 1 Byte schreiben
-	   EEPROM.write(EPA_centralAddress,1);
-   }
-
-// Zeit fuer "langer" Tastendruck pro Channel
-   for(byte i = 0; i < 2; i++) {
-	   keyLongPressTime[i] = EEPROM.read(EPA_channelLongPressTime + i);
-   }
-
-// set input/output
-// Input Pins arbeiten mit PULLUP, d.h. muessen per Taster
-// auf Masse gezogen werden
-  pinMode(I01,INPUT_PULLUP);
-  pinMode(I02,INPUT_PULLUP);
-  pinMode(O03,OUTPUT);
-  digitalWrite(O03,LOW);
-  pinMode(O04,OUTPUT);
-  digitalWrite(O04,LOW);
 }
 
 
@@ -184,20 +114,54 @@ class HMWDevice : public HMWDeviceBase {
 	  if(digitalRead(channelPorts[channel])) return 0xC800;
 	  else return 0;
 	};
+
+	void readConfig(){
+	   byte* ptr;
+	 // EEPROM lesen
+	   ptr = (byte*)(&config);
+	   for(int address = 0; address < sizeof(config); address++){
+		 *ptr = EEPROM.read(address + 0x01);
+		 ptr++;
+	   };
+	// defaults setzen, falls nicht sowieso klar
+	   if(config.logging_time == 0xFF) config.logging_time = 20;
+	   if(config.central_address == 0xFFFFFFFF) config.central_address = 0x00000001;
+	   for(byte channel = 0; channel < HMW_CONFIG_NUM_KEYS; channel++){
+		   if(config.keys[channel].long_press_time == 0xFF) config.keys[channel].long_press_time = 10;
+	   };
+	};
+
 };
+
+
+
+void setModuleConfig(HMWDevice* device) {
+
+// read config from EEPROM
+  device->readConfig();
+
+// set input/output
+// Input Pins arbeiten mit PULLUP, d.h. muessen per Taster
+// auf Masse gezogen werden
+  pinMode(I01,INPUT_PULLUP);
+  pinMode(I02,INPUT_PULLUP);
+  pinMode(O03,OUTPUT);
+  digitalWrite(O03,LOW);
+  pinMode(O04,OUTPUT);
+  digitalWrite(O04,LOW);
+}
+
+
 
 
 SoftwareSerial rs485(RS485_RXD, RS485_TXD); // RX, TX
 HMWRS485 hmwrs485(&rs485, RS485_TXEN, &Serial);
-// device type: 0x11 = HMW-LC-Sw2-DR
-// serial number
-// address
-// TODO: serial number und address sollte von woanders kommen
-HMWModule hmwmodule(new HMWDevice(), &hmwrs485, 0x11, "HHB2703111", 0x42380123);
+HMWModule* hmwmodule;   // wird in setup initialisiert
 
 //The setup function is called once at startup of the sketch
 void setup()
 {
+
 	pinMode(RS485_RXD, INPUT);
 	pinMode(RS485_TXD, OUTPUT);
 	pinMode(RS485_TXEN, OUTPUT);
@@ -206,12 +170,16 @@ void setup()
 	//   timer0 = 255
    Serial.begin(57600);
    rs485.begin(19200);
-// config aus EEPROM lesen
-   setModuleConfig();
 
-// Test
-// 0000111111100011
-// channelParam_behaviour = &H0FE3
+	// device type: 0x11 = HMW-LC-Sw2-DR
+	// serial number
+	// address
+	// TODO: serial number und address sollte von woanders kommen
+    HMWDevice* hmwdevice = new HMWDevice();
+	hmwmodule = new HMWModule(hmwdevice, &hmwrs485, 0x11, "HHB2703111", 0x42380123);
+
+// config aus EEPROM lesen
+   setModuleConfig(hmwdevice);
 
   hmwrs485.debug("huhu\n");
 }
@@ -229,9 +197,9 @@ void handleKeys() {
 
   long now = millis();
 
-// TODO: Wiederholtes Senden (alle 300ms) bei "Dauertaste"
-// TODO: Langer Tastendruck
   for(byte i = 0; i < 2; i++){
+// INPUT_LOCKED?
+   if(!config.keys[i].input_locked) continue;   // inverted logic, locked = 0
 // Taste nicht gedrueckt (negative Logik wegen INPUT_PULLUP)
    if(bitRead(portStatus[i/8],i%8)){
 	 // Taste war auch vorher nicht gedrueckt kann ignoriert werden
@@ -242,7 +210,7 @@ void handleKeys() {
 	   if(now - keyPressedMillis[i] >= 50 && !lastSentLong[i]){
 	     keyPressNum[i]++;
 // TODO: muss das eigentlich an die Zentrale gehen?
-	     hmwmodule.broadcastKeyEvent(i,keyPressNum[i]);
+	     hmwmodule->broadcastKeyEvent(i,keyPressNum[i]);
 	   };
 	   keyPressedMillis[i] = 0;
 	 };
@@ -251,20 +219,19 @@ void handleKeys() {
 	 // Taste war vorher schon gedrueckt
 	 if(keyPressedMillis[i]){
        // muessen wir ein "long" senden?
-	   // TODO: Konfigurierbar
 	   if(lastSentLong[i]) {   // schon ein LONG gesendet
 		  if(now - lastSentLong[i] >= 300){  // alle 300ms wiederholen
 			// keyPressNum nicht erhoehen
 			lastSentLong[i] = now ? now : 1; // der Teufel ist ein Eichhoernchen
 			// TODO: muss das eigentlich an die Zentrale gehen?
-			hmwmodule.broadcastKeyEvent(i,keyPressNum[i], true);
+			hmwmodule->broadcastKeyEvent(i,keyPressNum[i], true);
 		  };
-	   }else if(millis() - keyPressedMillis[i] >= 2000) {
+	   }else if(millis() - keyPressedMillis[i] >= long(config.keys[i].long_press_time) * 100) {
 		  // erstes LONG
 		  keyPressNum[i]++;
 	      lastSentLong[i] = millis();
 		  // TODO: muss das eigentlich an die Zentrale gehen?
-		  hmwmodule.broadcastKeyEvent(i,keyPressNum[i], true);
+		  hmwmodule->broadcastKeyEvent(i,keyPressNum[i], true);
 	   };
 	 }else{
 	   // Taste war vorher nicht gedrueckt
@@ -279,19 +246,13 @@ void handleKeys() {
 // The loop function is called in an endless loop
 void loop()
 {
-// TODO: Alles in loop
-// TODO: Long/short key
-
-
-   // static byte outstatus = 0;
-
 // Daten empfangen (tut nichts, wenn keine Daten vorhanden)
    hmwrs485.receive();
  // Check
    if(hmwrs485.frameComplete) {
       if(hmwrs485.targetAddress == hmwrs485.txSenderAddress || hmwrs485.targetAddress == 0xFFFFFFFF){
         hmwrs485.parseFrame();
-        hmwmodule.processEvents();
+        hmwmodule->processEvents();
       }
    };
 

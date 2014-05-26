@@ -21,7 +21,8 @@
 class HMWDeviceBase {
   public:
 	virtual void setLevel(byte,unsigned int) = 0;  // channel, level
-	virtual unsigned int getLevel(byte) = 0;                // channel, returns level
+	virtual unsigned int getLevel(byte) = 0;       // channel, returns level
+	virtual void readConfig() = 0;         // read config from EEPROM
 };
 
 

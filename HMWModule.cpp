@@ -74,9 +74,7 @@ void HMWModule::processEvents() {
             sendAck = 2;
             break;
          case 'C':                                                              // re read Config
-        	// TODO: Das ist momentan im Hauptprogramm und muss wohl auch
-        	//       dort bleiben -> Callback?
-            // setModuleConfig();
+        	device->readConfig();           // callback to device
             break;
          case 'E':                                                              // ???
             // TODO: Ich weiss noch nicht was der "E" - Befehl macht
