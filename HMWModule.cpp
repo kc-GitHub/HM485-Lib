@@ -77,7 +77,25 @@ void HMWModule::processEvents() {
         	device->readConfig();           // callback to device
             break;
          case 'E':                                                              // ???
-            // TODO: Ich weiss noch nicht was der "E" - Befehl macht
+            // TODO: Der E-Befehl wird von der Zentrale beim Pairing geschickt
+        	//       ganz klar ist aber nicht, was er macht. Bisher kam als
+        	//       Daten immer 0x00001040 mit und das wurde von einem echten
+        	//       Device mit einem e und 00 00 10 1F 00 00 00 00 00 60 00 beantwortet
+        	//       Einfach mal nachmachen, aber 100% richtig ist das wahrscheinlich nicht
+        	sendAck = 0;
+        	hmwrs485->txFrameDataLength = 12;
+        	hmwrs485->txFrameData[0] = 0x65;  //e
+        	hmwrs485->txFrameData[1] = 0x00;
+        	hmwrs485->txFrameData[2] = 0x00;
+        	hmwrs485->txFrameData[3] = 0x10;
+        	hmwrs485->txFrameData[4] = 0x1F;
+        	hmwrs485->txFrameData[5] = 0x00;
+        	hmwrs485->txFrameData[6] = 0x00;
+        	hmwrs485->txFrameData[7] = 0x00;
+        	hmwrs485->txFrameData[8] = 0x00;
+        	hmwrs485->txFrameData[9] = 0x00;
+        	hmwrs485->txFrameData[10] = 0x60;
+        	hmwrs485->txFrameData[11] = 0x00;
             break;
          case 'K':                                                              // Key-Event
             processEventKey();
@@ -190,6 +208,21 @@ void HMWModule::processEventKey(){
 
    void HMWModule::processEventSetLock(){
 		// TODO
+   };
+
+   // "Announce-Message" ueber broadcast senden
+   void HMWModule::broadcastAnnounce(byte channel) {
+      hmwrs485->txTargetAddress = 0xFFFFFFFF;  // broadcast
+      hmwrs485->txFrameControlByte = 0xF8;     // control byte
+      hmwrs485->txFrameDataLength = 16;      // Length
+      hmwrs485->txFrameData[0] = 0x41;         // 'i'
+      hmwrs485->txFrameData[1] = channel;      // Sensornummer
+      hmwrs485->txFrameData[2] = deviceType;
+      hmwrs485->txFrameData[3] = 0; // MODULE_HARDWARE_VERSION;
+      hmwrs485->txFrameData[4] = MODULE_FIRMWARE_VERSION / 0x100;
+      hmwrs485->txFrameData[5] = MODULE_FIRMWARE_VERSION & 0xFF;
+      memcpy(&hmwrs485->txFrameData[6], deviceSerial, 10);
+      hmwrs485->sendFrame();
    };
 
    // "Key Pressed" ueber broadcast senden

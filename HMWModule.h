@@ -14,7 +14,7 @@
 
 // TODO: Firmware/Hardware Version aus EEPROM bzw. Flash?
 #define MODULE_HARDWARE_VERSION 1
-#define MODULE_FIRMWARE_VERSION 1
+#define MODULE_FIRMWARE_VERSION 0x0306
 
 
 // Abstrakte Basisklasse mit Callbacks aus dem Modul
@@ -33,6 +33,7 @@ public:
 
 	void processEvents();
 
+	void broadcastAnnounce(byte);  // channel
 	void broadcastKeyEvent(byte, byte, byte = 0);  // channel, keyPressNum, long/short (long = 1)
 	void broadcastInfoMessage(byte, unsigned int);   // channel, info
 

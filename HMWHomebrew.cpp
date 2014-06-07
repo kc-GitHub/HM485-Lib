@@ -211,6 +211,9 @@ void handleKeys() {
 	     keyPressNum[i]++;
 // TODO: muss das eigentlich an die Zentrale gehen?
 	     hmwmodule->broadcastKeyEvent(i,keyPressNum[i]);
+	     // gleich ein Announce hinterher
+	     // TODO: Vielleicht gehoert das in den allgemeinen Teil
+	     hmwmodule->broadcastAnnounce(i);
 	   };
 	   keyPressedMillis[i] = 0;
 	 };
@@ -232,6 +235,9 @@ void handleKeys() {
 	      lastSentLong[i] = millis();
 		  // TODO: muss das eigentlich an die Zentrale gehen?
 		  hmwmodule->broadcastKeyEvent(i,keyPressNum[i], true);
+	      // gleich ein Announce hinterher
+		  // TODO: Vielleicht gehoert das in den allgemeinen Teil
+		  hmwmodule->broadcastAnnounce(i);
 	   };
 	 }else{
 	   // Taste war vorher nicht gedrueckt
