@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="ISO-8859-1"?>
+<device version="12" eep_size="1024">
+<supported_types>
+<type name="RS485 One Wire Temperature Module" id="HWB-ONEWIRE" priority="2">
+<parameter index="0" size="1" const_value="129"/><parameter index="1" size="1" const_value="0"/>
+</type></supported_types>
+<paramset type="MASTER" id="HWB-ONEWIRE_dev_master">
+	<parameter id="CENTRAL_ADDRESS" hidden="true">
+		<logical type="integer"/><physical type="integer" size="4" interface="eeprom"><address index="0x0002"/></physical>
+	</parameter>
+	<enforce id="CENTRAL_ADDRESS" value="1"/>
+</paramset>
+<frames>
+	<frame id="LEVEL_GET" direction="to_device" type="#S" channel_field="10"/>
+	<frame id="INFO_LEVEL" direction="from_device" event="true" type="#i" channel_field="10">
+		<parameter type="integer" index="11.0" size="2.0" param="STATE"/>
+	</frame>
+</frames>
+<channels>
+	<channel index="0" type="MAINTENANCE" ui_flags="internal" class="maintenance" count="1">
+		<paramset type="MASTER" id="maint_ch_master"/>
+		<paramset type="VALUES" id="maint_ch_values">
+			<parameter id="UNREACH" operations="read,event" ui_flags="service">
+				<logical type="boolean"/>
+				<physical type="integer" interface="internal" value_id="UNREACH"/>
+			</parameter>
+			<parameter id="STICKY_UNREACH" operations="read,write,event" ui_flags="service">
+				<logical type="boolean"/><physical type="integer" interface="internal" value_id="STICKY_UNREACH"/>
+			</parameter>
+			<parameter id="CONFIG_PENDING" operations="read,event" ui_flags="service">
+				<logical type="boolean"/><physical type="integer" interface="internal" value_id="CONFIG_PENDING"/>
+			</parameter>
+		</paramset>
+	</channel>
+	<channel index="21" count="6" physical_index_offset="-1" type="DIGITAL_ANALOG_INPUT">
+		<paramset type="VALUES" id="hmw_analog_input_values">
+			<parameter id="VALUE" operations="read,event">
+				<logical type="float" min="-273" max="1000"/>
+				<physical type="integer" interface="command" value_id="STATE">
+					<get request="LEVEL_GET" response="INFO_LEVEL"/>
+					<event frame="INFO_LEVEL"/>
+				</physical>
+				<conversion type="float_integer_scale" factor="10"/>
+			</parameter>
+		</paramset>		
+	</channel>
+</channels>
+</device>
