@@ -194,17 +194,20 @@ void HMWModule::processEventKey(){
 	 // tell the hardware
      device->setLevel(hmwrs485->frameData[1], hmwrs485->frameData[2]);
      // get what the hardware did and send it back
-     hmwrs485->txFrameDataLength = 0x04;      // Length
-     hmwrs485->txFrameData[0] = 0x69;         // 'i'
-     hmwrs485->txFrameData[1] = hmwrs485->frameData[1];      // Sensornummer
-     unsigned int info = device->getLevel(hmwrs485->frameData[1]);
-     hmwrs485->txFrameData[2] = info / 0x100;
-     hmwrs485->txFrameData[3] = info & 0xFF;
+     processEventGetLevel();
    };
 
+
    void HMWModule::processEventGetLevel(){
-		// TODO
+	 // get value from the hardware and send it back
+	 hmwrs485->txFrameDataLength = 0x04;      // Length
+	 hmwrs485->txFrameData[0] = 0x69;         // 'i'
+	 hmwrs485->txFrameData[1] = hmwrs485->frameData[1];      // Sensornummer
+	 unsigned int info = device->getLevel(hmwrs485->frameData[1]);
+	 hmwrs485->txFrameData[2] = info / 0x100;
+	 hmwrs485->txFrameData[3] = info & 0xFF;
    };
+
 
    void HMWModule::processEventSetLock(){
 		// TODO

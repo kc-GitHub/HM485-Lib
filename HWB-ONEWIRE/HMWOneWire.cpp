@@ -56,11 +56,16 @@
 #define RS485_TXEN 4
 #define LED 13
 
-byte loggingTime;
+#define MAX_SENSORS 10   // maximum number of 1-Wire Sensors
+#define DEFAULT_TEMP -273.15   // for unused channels
 
+byte sensorAddr[MAX_SENSORS][8]; // Addresses of OneWire Sensor
+float tempInCelsius[MAX_SENSORS];         // Temperatures in °C
+
+
+byte loggingTime;  // TODO: Needed?
 // Config
-hmw_config config;
-
+hmw_config config;  // TODO: Correct...
 
 // Klasse fuer Callbacks vom Protokoll
 class HMWDevice : public HMWDeviceBase {
@@ -71,10 +76,8 @@ class HMWDevice : public HMWDeviceBase {
 
 	unsigned int getLevel(byte channel) {
       // there is only one channel for now
-	  if(channel > 0) return 0;
-	  // read
-	  // TODO: return remperature here
-	  // TODO: unsigned int does not make sense
+	  if(channel > MAX_SENSORS) return (unsigned int)(-27315);
+	  return (unsigned int)(tempInCelsius[channel] * 100);
 	};
 
 	void readConfig(){
@@ -98,46 +101,55 @@ HMWRS485 hmwrs485(&rs485, RS485_TXEN, &Serial);
 HMWModule* hmwmodule;   // wird in setup initialisiert
 
 
-byte sensorAddr[8]; // Addresses of OneWire Sensor
-float tempInCelsius = 0;  // Temperature in °C
 
 
-// Sensor Adresse lesen
-// Es wird davon ausgegangen, dass genau 1 Device am Bus haengt
-void sensorAddressGet() {
-
-    myWire.reset_search();
-	if( !myWire.search(sensorAddr)) {
-	  Serial.println("No 1-Wire device found.");
+// Sensor Adressen lesen
+// TODO: Soemthing smarter with EEPROM etc.
+void sensorAddressesGet() {
+  // first kill all entries in sensorAddr
+  memset(sensorAddr, 0, 8 * MAX_SENSORS);
+  // search for addresses on the bus
+  myWire.reset_search();
+  for(int channel = 0; channel < MAX_SENSORS; channel++){
+	if(!myWire.search(sensorAddr[channel])) {
+	  memset(sensorAddr[channel],0,8);
 	  return;
 	};
-    Serial.print("ROM =");
+    Serial.print("1-Wire Device found:");
 	for( byte i = 0; i < 8; i++) {
 	   Serial.write(' ');
-	   Serial.print(sensorAddr[i], HEX);
+	   Serial.print(sensorAddr[channel][i], HEX);
 	};
-    if(OneWire::crc8(sensorAddr, 7) != sensorAddr[7]) {
-	  Serial.println("CRC is not valid!");
-	  return;
-	};
+    if(OneWire::crc8(sensorAddr[channel], 7) != sensorAddr[channel][7]) {
+	  Serial.println("CRC is not valid - ignoring device!");
+      memset(sensorAddr[channel],0,8);
+      channel--;
+    };
+  };
 };
 
 
 // send "start conversion" to device
-void oneWireStartConversion() {
+void oneWireStartConversion(byte channel) {
+  // ignore channels without sensor
+  if(!sensorAddr[channel][0])
+	return;
   myWire.reset();
-  myWire.select(sensorAddr);
+  myWire.select(sensorAddr[channel]);
   myWire.write(0x44, 1);        // start conversion, with parasite power on at the end
 };
 
 
-float oneWireReadTemp() {
+float oneWireReadTemp(byte channel) {
+   // ignore channels without sensor
+   if(!sensorAddr[channel][0])
+  	 return DEFAULT_TEMP;
 
 	byte data[12];
 
 	  // present = ds.reset();   TODO: what exactly does the "present" do we need it?
 	  myWire.reset();
-	  myWire.select(sensorAddr);
+	  myWire.select(sensorAddr[channel]);
 	  myWire.write(0xBE);         // Read Scratchpad
 
 	  for ( byte i = 0; i < 9; i++) {           // we need 9 bytes
@@ -150,7 +162,7 @@ float oneWireReadTemp() {
 	  // be stored to an "int16_t" type, which is always 16 bits
 	  // even when compiled on a 32 bit processor.
 	  int16_t raw = (data[1] << 8) | data[0];
-	  if (sensorAddr[0] == 0x10) {
+	  if (sensorAddr[channel][0] == 0x10) {
 	    raw = raw << 3; // 9 bit resolution default
 	    if (data[7] == 0x10) {   // DS18S20 or old DS1820
 	      // "count remain" gives full 12 bit resolution
@@ -171,29 +183,28 @@ float oneWireReadTemp() {
 
 // handle 1-Wire temperature measurement
 // measurement every 10 seconds, one measurement needs about 1 second
+// we have up to 10 sensors, so give every one 1 second
 void handleOneWire() {
 
-  static boolean waitingForResult = false;
+  static byte currentChannel = 255;  // we should never have 255 channels
   static long lastTime = 0;
   long now = millis();
 
-  // waiting for a result?
-  if(waitingForResult) {
-	if(now - lastTime > 1000){    // 1 second should be enough, even 750ms should be
-	  tempInCelsius = oneWireReadTemp();
-	  waitingForResult = false;
-	  lastTime = now;
-	};
-  }else{                        // waiting for next measurement
-	if(now - lastTime > 10000) {  // about every 10 secs or so
-	  oneWireStartConversion();
-	  waitingForResult = true;
-	  lastTime = now;
-	};
+  // once every 1 seconds
+  if(now -lastTime < 1000) return;
+  lastTime = now;
+
+  if(currentChannel == 255){  // special for the first call
+	currentChannel = 0;
+  }else{
+	// read temperature
+ 	tempInCelsius[currentChannel] = oneWireReadTemp(currentChannel);
+ 	currentChannel = (currentChannel + 1) % MAX_SENSORS;
   };
+  // start next measurement
+  oneWireStartConversion(currentChannel);
   // TODO: myWire.depower() ? what does this mean?
 };
-
 
 
 void setup()
@@ -207,8 +218,12 @@ void setup()
    Serial.begin(57600);
    rs485.begin(19200);
 
+   // Default temperature is -273.15 (currently...)
+   for(byte i = 0; i < MAX_SENSORS; i++)
+	  tempInCelsius[i] = DEFAULT_TEMP;
+
    // get 1-Wire Address
-   sensorAddressGet();
+   sensorAddressesGet();
 
 	// device type: 0x11 = HMW-LC-Sw2-DR
 	// serial number
@@ -247,10 +262,11 @@ void loop()
    static byte num = 0;
    long now = millis();
    if(now - last > 30000){
-	   // TODO: negative temperatures... etc.
-	   Serial.println(tempInCelsius);
-	   hmwmodule->broadcastInfoMessage(20,(unsigned int)(tempInCelsius * 10));
-	   hmwmodule->broadcastAnnounce(0);
+	   for(byte channel = 0; channel < MAX_SENSORS; channel++) {
+	     Serial.println(tempInCelsius[channel]);
+	     hmwmodule->broadcastInfoMessage(channel,(unsigned int)(tempInCelsius[channel] * 100));
+	   };
+	   hmwmodule->broadcastAnnounce(0);   // only once
 	   last = now;
    }
 }
