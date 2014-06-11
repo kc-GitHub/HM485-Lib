@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="ISO-8859-1"?>
 <device version="12" eep_size="1024">
 <supported_types>
-<type name="RS485 One Wire Temperature Module" id="HWB-ONEWIRE" priority="2">
+<type name="RS485 One Wire 10 Channel Temperature Module" id="HWB-1WIRE-TMP10" priority="2">
 <parameter index="0" size="1" const_value="129"/><parameter index="1" size="1" const_value="0"/>
 </type></supported_types>
 <paramset type="MASTER" id="HWB-ONEWIRE_dev_master">
@@ -32,7 +32,40 @@
 			</parameter>
 		</paramset>
 	</channel>
-	<channel index="1" count="10" physical_index_offset="-1" type="DIGITAL_ANALOG_INPUT">
+	<channel index="1" count="10" physical_index_offset="-1" type="TEMPSENSOR">
+	    <paramset type="MASTER" id="hmw_input_ch_master" address_step="16" address_start="0x10">
+			<parameter id="SEND_DELTA_TEMP">
+			   <logical type="float" unit="&#x2103;" default="0.5" min="0.1" max="25.0">
+			       <special_value id="NOT_USED" value="0"/>
+			   </logical>	   
+               <physical size="1.0" type="integer" interface="eeprom">
+                  <address index="+1.0"/>
+               </physical>	
+               <conversion type="float_integer_scale" factor="10"/>			   
+			</parameter>
+			<parameter id="SEND_MIN_INTERVAL">
+			   <logical type="integer" unit="s" default="10" min="5" max="3600">
+			     <special_value id="NOT_USED" value="0"/>
+			   </logical>	   
+               <physical size="2.0" type="integer" interface="eeprom">
+                  <address index="+3.0"/>
+               </physical>	   
+			</parameter>
+			<parameter id="SEND_MAX_INTERVAL">
+			   <logical type="integer" unit="s" default="150" min="5" max="3600">
+			     <special_value id="NOT_USED" value="0"/>
+			   </logical>	   
+               <physical size="2.0" type="integer" interface="eeprom">
+                  <address index="+5.0"/>
+               </physical>	   
+			</parameter>
+			<parameter id="ONEWIRE_TYPE">
+			   <logical type="integer" min="0" max="255"/>
+               <physical size="1.0" type="integer" interface="eeprom">
+                  <address index="+7.0"/>
+               </physical>	   
+			</parameter>		
+		</paramset>
 		<paramset type="VALUES" id="hmw_analog_input_values">
 			<parameter id="TEMPERATURE" operations="read,event">
 				<logical type="float" min="-273.15" max="327.67" unit="&#x2103;"/>

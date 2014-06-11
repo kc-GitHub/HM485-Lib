@@ -4,7 +4,7 @@
 //
 // Homematic Wired Hombrew Hardware
 // Arduino Uno als Homematic-Device
-// HMW-HB-ARDUINO-UNO
+// HMW-1WIRE-TMP10
 // Thorsten Pferdekaemper (thorsten@pferdekaemper.com)
 // nach einer Vorlage von
 // Dirk Hoffmann (hoffmann@vmd-jena.de)
@@ -13,7 +13,6 @@
 //Hardwarebeschreibung:
 // =====================
 //
-// Kompatibel mit HMW-LC-Sw2-DR
 // Pinsettings for Arduino Uno
 //
 // D0: RXD, normaler Serieller Port fuer Debug-Zwecke
@@ -22,10 +21,8 @@
 // D3: TXD, DI des RS485-Treiber
 // D4: Direction (DE/-RE) Driver/Receiver Enable vom RS485-Treiber
 //
-// D5: Taster 1   / Kanal 1
-// D6: Taster 2   / Kanal 2
-// D7: Schalter 1 / Kanal 3
-// D8: Schalter 2 / Kanal 4
+// D5: Taster 1
+// D10: 1Wire-Data
 // D13: Status-LED
 
 // Die Firmware funktioniert mit dem Standard-Uno Bootloader, im
@@ -43,8 +40,6 @@
 // OneWire
 #include <OneWire.h>
 
-// Datenstrukturen fuer Konfiguration
-#include "HMWRegister.h"
 // HM Wired Protokoll
 #include "HMWRS485.h"
 // default module methods
@@ -54,18 +49,16 @@
 #define RS485_RXD 2
 #define RS485_TXD 3
 #define RS485_TXEN 4
-#define LED 13
+#define BUTTON 5      // Das Bedienelement
+#define LED 13        // Signal-LED
+
+#define EEPROM_SIZE 1024   // TODO: Das muesste es auch zentral geben
 
 #define MAX_SENSORS 10   // maximum number of 1-Wire Sensors
 #define DEFAULT_TEMP -273.15   // for unused channels
 
 byte sensorAddr[MAX_SENSORS][8]; // Addresses of OneWire Sensor
 float tempInCelsius[MAX_SENSORS];         // Temperatures in °C
-
-
-byte loggingTime;  // TODO: Needed?
-// Config
-hmw_config config;  // TODO: Correct...
 
 // Klasse fuer Callbacks vom Protokoll
 class HMWDevice : public HMWDeviceBase {
@@ -180,7 +173,6 @@ float oneWireReadTemp(byte channel) {
 };
 
 
-
 // handle 1-Wire temperature measurement
 // measurement every 10 seconds, one measurement needs about 1 second
 // we have up to 10 sensors, so give every one 1 second
@@ -207,12 +199,109 @@ void handleOneWire() {
 };
 
 
+void factoryReset() {
+// writes FF into the EEPROM
+  for(int addr = 0; addr < EEPROM_SIZE; addr++) {
+	if(EEPROM.read(addr) != 0xFF)
+		EEPROM.write(addr, 0xFF);
+  }
+}
+
+
+void handleButton() {
+  // langer Tastendruck (5s) -> LED blinkt hektisch
+  // dann innerhalb 10s langer Tastendruck (3s) -> LED geht aus, EEPROM-Reset
+
+  static long lastTime = 0;
+  static byte status = 0;  // 0: normal, 1: Taste erstes mal gedrückt, 2: erster langer Druck erkannt
+                           // 3: Warte auf zweiten Tastendruck, 4: Taste zweites Mal gedrückt
+                           // 5: zweiter langer Druck erkannt
+
+  long now = millis();
+  boolean buttonState = !digitalRead(BUTTON);
+
+  switch(status) {
+    case 0:
+      if(buttonState) status = 1;
+      lastTime = now;
+      break;
+    case 1:
+      if(buttonState) {   // immer noch gedrueckt
+        if(now - lastTime > 5000) status = 2;
+      }else{              // nicht mehr gedrückt
+        status = 0;
+      };
+      break;
+    case 2:
+      if(!buttonState) {  // losgelassen
+    	status = 3;
+    	lastTime = now;
+      };
+      break;
+    case 3:
+      // wait at least 100ms
+      if(now - lastTime < 100)
+    	break;
+      if(buttonState) {   // zweiter Tastendruck
+    	status = 4;
+    	lastTime = now;
+      }else{              // noch nicht gedrueckt
+    	if(now - lastTime > 10000) status = 0;    // give up
+      };
+      break;
+    case 4:
+      if(now - lastTime < 100) // entprellen
+          	break;
+      if(buttonState) {   // immer noch gedrueckt
+        if(now - lastTime > 3000) status = 5;
+      }else{              // nicht mehr gedrückt
+        status = 0;
+      };
+      break;
+    case 5:   // zweiter Druck erkannt
+      if(!buttonState) {    //erst wenn losgelassen
+    	// Factory-Reset          !!!!!!  TODO: Gehoert das ins Modul?
+    	factoryReset();
+    	status = 0;
+      }
+      break;
+  }
+
+  // control LED
+  static long lastLEDtime = 0;
+  switch(status) {
+    case 0:
+      digitalWrite(LED, LOW);
+      break;
+    case 1:
+      digitalWrite(LED, HIGH);
+      break;
+    case 2:
+    case 3:
+    case 4:
+      if(now - lastLEDtime > 100) {  // schnelles Blinken
+    	digitalWrite(LED,!digitalRead(LED));
+    	lastLEDtime = now;
+      };
+      break;
+    case 5:
+      if(now - lastLEDtime > 750) {  // langsames Blinken
+       	digitalWrite(LED,!digitalRead(LED));
+       	lastLEDtime = now;
+      };
+  }
+};
+
+
 void setup()
 {
 	pinMode(RS485_RXD, INPUT);
 	pinMode(RS485_TXD, OUTPUT);
 	pinMode(RS485_TXEN, OUTPUT);
 	digitalWrite(RS485_TXEN, LOW);
+
+	pinMode(BUTTON, INPUT_PULLUP);
+	pinMode(LED, OUTPUT);
 
 	//   timer0 = 255
    Serial.begin(57600);
@@ -256,6 +345,9 @@ void loop()
 
  // Temperatur lesen
    handleOneWire();
+
+ // Bedienung ueber Button
+   handleButton();
 
  // zweimal pro Minute ein "A" und die Temperatur senden
    static long last = 0;
