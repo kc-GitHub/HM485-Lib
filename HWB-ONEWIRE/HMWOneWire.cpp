@@ -57,8 +57,99 @@
 #define MAX_SENSORS 10   // maximum number of 1-Wire Sensors
 #define DEFAULT_TEMP -273.15   // for unused channels
 
-byte sensorAddr[MAX_SENSORS][8]; // Addresses of OneWire Sensor
-float tempInCelsius[MAX_SENSORS];         // Temperatures in °C
+// config of one sensor
+struct sensor_config {
+  byte :8;                          // dummy
+  byte send_delta_temp;             // Temperaturdifferenz, ab der gesendet wird
+  byte :8;
+  unsigned int send_min_interval;   // Minimum-Sendeintervall
+  unsigned int send_max_interval;   // Maximum-Sendeintervall
+  byte address[8];                  // 1-Wire-Adresse
+  byte :8;
+};
+
+// TODO: Check whether we have enough memory to do the following
+sensor_config sensors[MAX_SENSORS];
+
+// currently measured temperature
+int currentTemp[MAX_SENSORS];         // Temperatures in °C * 100
+// TODO: If we wwant to work with peering, then the config etc. probably needs to be set by peer
+// temperature measured on last send
+int lastSentTemp[MAX_SENSORS];
+// time of last send
+long lastSentTime[MAX_SENSORS];
+
+
+// write config to EEPROM in a hopefully smart way
+void writeConfig(){
+    byte* ptr;
+    byte data;
+	// EEPROM lesen und schreiben
+	ptr = (byte*)(sensors);
+	for(int address = 0; address < sizeof(sensors[0]) * MAX_SENSORS; address++){
+	  if(*ptr != EEPROM.read(address + 0x10))
+		  EEPROM.write(address + 0x10, *ptr);
+	  ptr++;
+    };
+};
+
+
+// OneWire auf Pin 10
+OneWire myWire(10);
+
+
+// Sensor Adressen lesen
+// Before calling this function, config must have been read
+// It only searches for new sensors if there is a free channel
+void sensorAddressesGet() {
+
+  byte addr[8];
+  byte channel;
+
+  // search for addresses on the bus
+  myWire.reset_search();
+
+  while(1) {
+    // search free slot
+	for(channel = 0; channel < MAX_SENSORS && sensors[channel].address[0] != 0xFF; channel++);
+    if(channel == MAX_SENSORS) break;   // no free slot found
+    // now channel points to a free slot
+	if(!myWire.search(addr)) break;     // no further sensor found
+	Serial.print(F("1-Wire Device found:"));
+	for( byte i = 0; i < 8; i++) {
+	  Serial.write(' ');
+	  Serial.print(addr[i], HEX);
+	};
+	if(OneWire::crc8(addr, 7) != addr[7]) {
+	  Serial.println(F("CRC is not valid - ignoring device!"));
+	  continue;
+    };
+	// now we found a valid device, check if this is already known
+	byte oldChan;
+    for(oldChan = 0; oldChan < MAX_SENSORS; oldChan++) {
+       if(memcmp(addr, sensors[oldChan].address, 8) == 0) break;   // found
+    };
+    if(oldChan < MAX_SENSORS){
+  	  Serial.println(F("Device already known"));
+  	  continue;
+    };
+    // we have a new device!
+    memcpy(sensors[channel].address, addr, 8);
+  };
+  // now the devices are in sensors[], write them to the EEPROM
+  writeConfig();
+};
+
+
+void setDefaults(){
+  // defaults setzen
+  for(byte channel = 0; channel < MAX_SENSORS; channel++){
+    if(sensors[channel].send_delta_temp == 0xFF) sensors[channel].send_delta_temp = 5;
+    if(sensors[channel].send_min_interval == 0xFFFF) sensors[channel].send_min_interval = 10;
+    if(sensors[channel].send_max_interval == 0xFFFF) sensors[channel].send_max_interval = 150;
+  };
+};
+
 
 // Klasse fuer Callbacks vom Protokoll
 class HMWDevice : public HMWDeviceBase {
@@ -69,24 +160,29 @@ class HMWDevice : public HMWDeviceBase {
 
 	unsigned int getLevel(byte channel) {
       // there is only one channel for now
-	  if(channel > MAX_SENSORS) return (unsigned int)(-27315);
-	  return (unsigned int)(tempInCelsius[channel] * 100);
+	  int defTemp = DEFAULT_TEMP * 100;
+	  if(channel > MAX_SENSORS) return (unsigned int)(defTemp);
+	  return currentTemp[channel];
 	};
 
 	void readConfig(){
-      return;   // gibt's zurzeit nicht
+      byte* ptr;
+	  // EEPROM lesen
+	  ptr = (byte*)(sensors);
+	  for(int address = 0; address < sizeof(sensors[0]) * MAX_SENSORS; address++){
+	    *ptr = EEPROM.read(address + 0x10);
+	    ptr++;
+	  };
+	  // defaults setzen
+	  setDefaults();
+	  // nach neuen Sensoren suchen
+	  sensorAddressesGet();
 	};
-
 };
 
-// OneWire auf Pin 10
-OneWire myWire(10);
+// The device will be created in setup()
+HMWDevice hmwdevice;
 
-
-void setModuleConfig(HMWDevice* device) {
-// read config from EEPROM
-  device->readConfig();
-}
 
 
 SoftwareSerial rs485(RS485_RXD, RS485_TXD); // RX, TX
@@ -94,55 +190,27 @@ HMWRS485 hmwrs485(&rs485, RS485_TXEN, &Serial);
 HMWModule* hmwmodule;   // wird in setup initialisiert
 
 
-
-
-// Sensor Adressen lesen
-// TODO: Soemthing smarter with EEPROM etc.
-void sensorAddressesGet() {
-  // first kill all entries in sensorAddr
-  memset(sensorAddr, 0, 8 * MAX_SENSORS);
-  // search for addresses on the bus
-  myWire.reset_search();
-  for(int channel = 0; channel < MAX_SENSORS; channel++){
-	if(!myWire.search(sensorAddr[channel])) {
-	  memset(sensorAddr[channel],0,8);
-	  return;
-	};
-    Serial.print("1-Wire Device found:");
-	for( byte i = 0; i < 8; i++) {
-	   Serial.write(' ');
-	   Serial.print(sensorAddr[channel][i], HEX);
-	};
-    if(OneWire::crc8(sensorAddr[channel], 7) != sensorAddr[channel][7]) {
-	  Serial.println("CRC is not valid - ignoring device!");
-      memset(sensorAddr[channel],0,8);
-      channel--;
-    };
-  };
-};
-
-
 // send "start conversion" to device
 void oneWireStartConversion(byte channel) {
   // ignore channels without sensor
-  if(!sensorAddr[channel][0])
+  if(sensors[channel].address[0] == 0xFF)
 	return;
   myWire.reset();
-  myWire.select(sensorAddr[channel]);
+  myWire.select(sensors[channel].address);
   myWire.write(0x44, 1);        // start conversion, with parasite power on at the end
 };
 
 
 float oneWireReadTemp(byte channel) {
    // ignore channels without sensor
-   if(!sensorAddr[channel][0])
+   if(sensors[channel].address[0] == 0xFF)
   	 return DEFAULT_TEMP;
 
 	byte data[12];
 
 	  // present = ds.reset();   TODO: what exactly does the "present" do we need it?
 	  myWire.reset();
-	  myWire.select(sensorAddr[channel]);
+	  myWire.select(sensors[channel].address);
 	  myWire.write(0xBE);         // Read Scratchpad
 
 	  for ( byte i = 0; i < 9; i++) {           // we need 9 bytes
@@ -155,7 +223,7 @@ float oneWireReadTemp(byte channel) {
 	  // be stored to an "int16_t" type, which is always 16 bits
 	  // even when compiled on a 32 bit processor.
 	  int16_t raw = (data[1] << 8) | data[0];
-	  if (sensorAddr[channel][0] == 0x10) {
+	  if (sensors[channel].address[0] == 0x10) {
 	    raw = raw << 3; // 9 bit resolution default
 	    if (data[7] == 0x10) {   // DS18S20 or old DS1820
 	      // "count remain" gives full 12 bit resolution
@@ -190,7 +258,7 @@ void handleOneWire() {
 	currentChannel = 0;
   }else{
 	// read temperature
- 	tempInCelsius[currentChannel] = oneWireReadTemp(currentChannel);
+ 	currentTemp[currentChannel] = oneWireReadTemp(currentChannel) * 100;
  	currentChannel = (currentChannel + 1) % MAX_SENSORS;
   };
   // start next measurement
@@ -200,11 +268,13 @@ void handleOneWire() {
 
 
 void factoryReset() {
-// writes FF into the EEPROM
-  for(int addr = 0; addr < EEPROM_SIZE; addr++) {
-	if(EEPROM.read(addr) != 0xFF)
-		EEPROM.write(addr, 0xFF);
-  }
+  // writes FF into config
+  memset(sensors, 0xFF, sizeof(sensors[0]) * MAX_SENSORS);
+  // set defaults
+  setDefaults();
+  // nach neuen Sensoren suchen
+  // this will at the end write to EEPROM
+  sensorAddressesGet();
 }
 
 
@@ -229,6 +299,8 @@ void handleButton() {
       if(buttonState) {   // immer noch gedrueckt
         if(now - lastTime > 5000) status = 2;
       }else{              // nicht mehr gedrückt
+    	if(now - lastTime > 100)   // send announce on short press
+    		hmwmodule->broadcastAnnounce(0);
         status = 0;
       };
       break;
@@ -293,6 +365,20 @@ void handleButton() {
 };
 
 
+void printChannelConf(){
+  for(byte channel = 0; channel < MAX_SENSORS; channel++) {
+	 Serial.print("Channel     :"); Serial.println(channel);
+ 	 Serial.print("Min Interval:"); Serial.println(sensors[channel].send_min_interval);
+   	 Serial.print("Max Interval:"); Serial.println(sensors[channel].send_max_interval);
+   	 Serial.print("Delta Temp  :"); Serial.println(sensors[channel].send_delta_temp);
+   	 Serial.print("Current Temp:"); Serial.println(currentTemp[channel]);
+   	 Serial.print("Last    Temp:"); Serial.println(lastSentTemp[channel]);
+   	 Serial.print("Size        :"); Serial.println(sizeof(sensors[channel]));
+   	 Serial.println();
+  }
+}
+
+
 void setup()
 {
 	pinMode(RS485_RXD, INPUT);
@@ -308,25 +394,28 @@ void setup()
    rs485.begin(19200);
 
    // Default temperature is -273.15 (currently...)
-   for(byte i = 0; i < MAX_SENSORS; i++)
-	  tempInCelsius[i] = DEFAULT_TEMP;
+   for(byte i = 0; i < MAX_SENSORS; i++) {
+	  currentTemp[i] = DEFAULT_TEMP * 100;
+      lastSentTemp[i] = DEFAULT_TEMP * 100;
+      lastSentTime[i] = 0;
+   };
 
-   // get 1-Wire Address
-   sensorAddressesGet();
+   // config aus EEPROM lesen
+   hmwdevice.readConfig();
 
-	// device type: 0x11 = HMW-LC-Sw2-DR
+	// device type: 0x81
 	// serial number
 	// address
 	// TODO: serial number und address sollte von woanders kommen
-    // TODO: Das 1-Wire Teil braucht hier was Spezielles
    // TODO: Modultyp irgendwo als define
-    HMWDevice* hmwdevice = new HMWDevice();
-	hmwmodule = new HMWModule(hmwdevice, &hmwrs485, 0x81, "HHB2703110", 0x42380122);
-
-// config aus EEPROM lesen
-    setModuleConfig(hmwdevice);
+ 	hmwmodule = new HMWModule(&hmwdevice, &hmwrs485, 0x81, "HHB2703110", 0x42380122);
 
     hmwrs485.debug("huhu\n");
+
+    // send announce message
+	hmwmodule->broadcastAnnounce(0);
+
+	printChannelConf();
 }
 
 
@@ -349,19 +438,23 @@ void loop()
  // Bedienung ueber Button
    handleButton();
 
- // zweimal pro Minute ein "A" und die Temperatur senden
-   static long last = 0;
-   static byte num = 0;
+ // Pruefen, ob wir irgendwas senden muessen
    long now = millis();
-   if(now - last > 30000){
-	   for(byte channel = 0; channel < MAX_SENSORS; channel++) {
-	     Serial.println(tempInCelsius[channel]);
-	     hmwmodule->broadcastInfoMessage(channel,(unsigned int)(tempInCelsius[channel] * 100));
-	   };
-	   hmwmodule->broadcastAnnounce(0);   // only once
-	   last = now;
-   }
-}
+   for(byte channel = 0; channel < MAX_SENSORS; channel++) {
+	 // channel has a sensor?
+	 if(sensors[channel].address[0] == 0xFF) continue;
+	 // do not send before min interval
+	 if(sensors[channel].send_min_interval && now - lastSentTime[channel] < (long)(sensors[channel].send_min_interval) * 1000)
+		  continue;
+     if(    (sensors[channel].send_max_interval && now - lastSentTime[channel] >= (long)(sensors[channel].send_max_interval) * 1000)
+    	 || (sensors[channel].send_delta_temp
+    	         && abs( currentTemp[channel] - lastSentTemp[channel] ) >= (unsigned int)(sensors[channel].send_delta_temp) * 10)) {
+	     hmwmodule->broadcastInfoMessage(channel,currentTemp[channel]);
+         lastSentTemp[channel] = currentTemp[channel];
+         lastSentTime[channel] = now;
+     };
+   };
+};
 
 
 

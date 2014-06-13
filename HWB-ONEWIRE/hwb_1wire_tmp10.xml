@@ -41,26 +41,37 @@
                <physical size="1.0" type="integer" interface="eeprom">
                   <address index="+1.0"/>
                </physical>	
-               <conversion type="float_integer_scale" factor="10"/>			   
+               <conversion type="float_integer_scale" factor="10"/>		
+               <conversion type="integer_integer_map">
+                 <value_map to_device="false" from_device="true" parameter_value="5" device_value="0xff"/>
+               </conversion>			   
 			</parameter>
 			<parameter id="SEND_MIN_INTERVAL">
 			   <logical type="integer" unit="s" default="10" min="5" max="3600">
 			     <special_value id="NOT_USED" value="0"/>
 			   </logical>	   
-               <physical size="2.0" type="integer" interface="eeprom">
+               <physical size="2.0" type="integer" interface="eeprom" endian="little">
                   <address index="+3.0"/>
-               </physical>	   
+               </physical>	  
+               <conversion type="integer_integer_map">
+                 <value_map to_device="false" from_device="true" parameter_value="10" device_value="0xffff"/>
+               </conversion>				   
 			</parameter>
 			<parameter id="SEND_MAX_INTERVAL">
 			   <logical type="integer" unit="s" default="150" min="5" max="3600">
 			     <special_value id="NOT_USED" value="0"/>
 			   </logical>	   
-               <physical size="2.0" type="integer" interface="eeprom">
+               <physical size="2.0" type="integer" interface="eeprom" endian="little">
                   <address index="+5.0"/>
-               </physical>	   
+               </physical>	
+               <conversion type="integer_integer_map">
+                 <value_map to_device="false" from_device="true" parameter_value="150" device_value="0xffff"/>
+               </conversion>				   
 			</parameter>
 			<parameter id="ONEWIRE_TYPE">
-			   <logical type="integer" min="0" max="255"/>
+			   <logical type="integer" min="0" max="254">
+			      <special_value id="NOT_USED" value="255"/>
+			    </logical>	  	  
                <physical size="1.0" type="integer" interface="eeprom">
                   <address index="+7.0"/>
                </physical>	   
