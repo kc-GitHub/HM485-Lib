@@ -30,12 +30,20 @@
 
 //*******************************************************************
 
+// Die "DEBUG_UNO"-Version ist fuer einen normalen Arduino Uno (oder so)
+// gedacht. Dadurch wird RS485 ueber SoftwareSerial angesteuert
+// und der Hardware-Serial-Port wird fuer Debug-Ausgaben benutzt
+// #define DEBUG_UNO 1
+
 // Do not remove the include below
 #include "HMWOneWire.h"
 
 #include <EEPROM.h>
+
+#ifdef DEBUG_UNO
 // TODO: Eigene SoftwareSerial
 #include <SoftwareSerial.h>
+#endif
 
 // OneWire
 #include <OneWire.h>
@@ -46,11 +54,17 @@
 #include "HMWModule.h"
 
 // Ein paar defines...
-#define RS485_RXD 2
-#define RS485_TXD 3
-#define RS485_TXEN 4
-#define BUTTON 5      // Das Bedienelement
-#define LED 13        // Signal-LED
+#ifdef DEBUG_UNO
+  #define RS485_RXD 5
+  #define RS485_TXD 6
+  #define LED 13        // Signal-LED
+#else
+  #define LED 4         // Signal-LED
+#endif
+#define BUTTON 8            // Das Bedienelement
+#define RS485_TXEN 2        // Transmit-Enable
+
+#define ONEWIRE_PIN A3
 
 #define EEPROM_SIZE 1024   // TODO: Das muesste es auch zentral geben
 
@@ -94,8 +108,8 @@ void writeConfig(){
 };
 
 
-// OneWire auf Pin 10
-OneWire myWire(10);
+// OneWire
+OneWire myWire(ONEWIRE_PIN);
 
 
 // Sensor Adressen lesen
@@ -184,9 +198,12 @@ class HMWDevice : public HMWDeviceBase {
 HMWDevice hmwdevice;
 
 
-
+#ifdef DEBUG_UNO
 SoftwareSerial rs485(RS485_RXD, RS485_TXD); // RX, TX
 HMWRS485 hmwrs485(&rs485, RS485_TXEN, &Serial);
+#else
+HMWRS485 hmwrs485(&Serial, RS485_TXEN);  // keine Debug-Ausgaben
+#endif
 HMWModule* hmwmodule;   // wird in setup initialisiert
 
 
@@ -364,7 +381,7 @@ void handleButton() {
   }
 };
 
-
+#ifdef DEBUG_UNO
 void printChannelConf(){
   for(byte channel = 0; channel < MAX_SENSORS; channel++) {
 	 Serial.print("Channel     :"); Serial.println(channel);
@@ -377,21 +394,27 @@ void printChannelConf(){
    	 Serial.println();
   }
 }
+#endif
 
 
 void setup()
 {
+#ifdef DEBUG_UNO
 	pinMode(RS485_RXD, INPUT);
 	pinMode(RS485_TXD, OUTPUT);
+#endif
 	pinMode(RS485_TXEN, OUTPUT);
 	digitalWrite(RS485_TXEN, LOW);
 
 	pinMode(BUTTON, INPUT_PULLUP);
 	pinMode(LED, OUTPUT);
 
-	//   timer0 = 255
+#ifdef DEBUG_UNO
    Serial.begin(57600);
    rs485.begin(19200);
+#else
+   Serial.begin(19200, SERIAL_8E1);
+#endif
 
    // Default temperature is -273.15 (currently...)
    for(byte i = 0; i < MAX_SENSORS; i++) {
@@ -414,8 +437,9 @@ void setup()
 
     // send announce message
 	hmwmodule->broadcastAnnounce(0);
-
+#ifdef DEBUG_UNO
 	printChannelConf();
+#endif
 }
 
 

@@ -18,7 +18,7 @@
 
 class HMWRS485 {
 public:
-	HMWRS485(Stream*, byte, Stream*);  // RS485 interface, TX-Enable Pin, debug-Serial
+	HMWRS485(Stream*, byte, Stream* = 0);  // RS485 interface, TX-Enable Pin, debug-Serial
 	virtual ~HMWRS485();
 
 	void receive();  // muss zyklisch aufgerufen werden

@@ -12,7 +12,7 @@
 
 #include "Arduino.h"
 
-HMWRS485::HMWRS485(Stream* _serial, byte _txEnablePin, Stream* _debugSerial = 0) {
+HMWRS485::HMWRS485(Stream* _serial, byte _txEnablePin, Stream* _debugSerial) {
 	serial = _serial;
 	txEnablePin = _txEnablePin;
 	debugSerial = _debugSerial;
@@ -187,6 +187,7 @@ void HMWRS485::sendFrame() {
       debug("\nSending\n");
       digitalWrite(txEnablePin, HIGH);
       serial->write(FRAME_START_LONG);  // send startbyte
+      delay(1);  //TODO: Really?
       digitalWrite(txEnablePin, LOW);
       crc16checksum = crc16Shift(FRAME_START_LONG , crc16checksum);
 
@@ -247,6 +248,7 @@ void HMWRS485::sendFrameByte(byte sendByte) {
       };
       serial->write(sendByte);
   // "Senden" ausschalten
+      delay(1);    // TODO: Really?
       digitalWrite(txEnablePin, LOW);
 };
 
@@ -314,7 +316,7 @@ void HMWRS485::receive(){
 
   while(serial->available()) {
 
-	  byte rxByte = serial->read();    // von Serial oder SoftSerial
+    byte rxByte = serial->read();    // von Serial oder SoftSerial
 
     // Debug
     if( rxByte == 0xFD ) debug("\nReceiving \n");
