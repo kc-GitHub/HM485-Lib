@@ -8,10 +8,12 @@ The actual library consists of the following files:
 	HMWModule.h
 	HMWRS485.cpp
 	HMWRS485.h
+	HMWDebug.cpp
+	HMWDebug.h
 	
-If you want to use SoftwareSerial, you need to replace the original SoftwareSerial.cpp by the one given here.
+If you want to use SoftwareSerial for the RS485 connection, you need to replace the original SoftwareSerial.cpp by the one given here.
 	
-The directory contain actual implementations of devices (only prototypes so far).
+The directory contains actual implementations of devices (only prototypes so far).
 
 HMW-IO-12-FM does not work yet
 HMW-LC-Sw2-DR is like the original HMW-LC-Sw2-DR, but quite some stuff missing

@@ -18,7 +18,7 @@
 
 class HMWRS485 {
 public:
-	HMWRS485(Stream*, byte, Stream* = 0);  // RS485 interface, TX-Enable Pin, debug-Serial
+	HMWRS485(Stream*, byte);  // RS485 interface, TX-Enable Pin
 	virtual ~HMWRS485();
 
 	void receive();  // muss zyklisch aufgerufen werden
@@ -26,7 +26,6 @@ public:
 	void parseFrame();
 	void sendFrame();
 	void sendAck();  // ACK fuer gerade verarbeitete Message senden
-	void debug(char*);
 
 	// Empfangen
 	byte frameComplete;
@@ -49,9 +48,6 @@ private:
 	Stream* serial;
 // Pin-Nummer fuer "TX-Enable"
 	byte txEnablePin;
-// Stream fuer Debug-Ausgaben
-	Stream* debugSerial;
-
 	// TODO: Das Folgende geht etwas verschwenderisch mit dem Speicher um
 	// Addressen, auf deren ACK gewartet wird (?)
 	unsigned long waitAckAddress[MAX_DEVICE_RELATIONS];

@@ -48,6 +48,7 @@ private:
     void processEventSetLevel();
 	void processEventGetLevel();
 	void processEventSetLock();
+	void processEmessage();
 };
 
 #endif /* HMWMODULE_H_ */
