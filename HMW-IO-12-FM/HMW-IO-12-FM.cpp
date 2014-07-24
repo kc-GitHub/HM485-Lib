@@ -68,23 +68,23 @@
 
 
 
-// --- EEPROM Variablen für Parametersets ---
+// --- EEPROM Variablen fï¿½r Parametersets ---
 // Die folgenden Defines sind die Adressen der entsprechenden
 // "Variablen" im EEPROM
 // EPA steht fuer "EEPROM Parameter Address"
 
 // nach der eigestellten Logging Time sendet der Aktor seinen aktuellen Wert
-// zurück an die Zentrale? mit einem "i" - event. Min 0.1 (1), Max 25.5 (255), default 2 (20) Sekunden
+// zurï¿½ck an die Zentrale? mit einem "i" - event. Min 0.1 (1), Max 25.5 (255), default 2 (20) Sekunden
 #define EPA_loggingTime 0x0001     // 1 byte
 
-// Die Zentralenadresse wird wohl für die Logging "i" - Events benutzt.
+// Die Zentralenadresse wird wohl fï¿½r die Logging "i" - Events benutzt.
 #define EPA_centralAddress 0x0002  // 4 bytes
 
-// Direktverknüpfungen nicht erlaubt?
+// Direktverknï¿½pfungen nicht erlaubt?
 // TODO: Wird noch nicht benutzt. Wozu?
 #define EPA_directLinkDeactivated 0x0006  // 2 bytes
 
-// --- EEPROM Variablen für channels ---
+// --- EEPROM Variablen fï¿½r channels ---
 
 // ist der Kanal Input oder Output (die ersten 12 Bits) (0 => Input => Default ???)
 // TODO: in initDefault entsprechend setzen
@@ -129,10 +129,14 @@ byte loggingTime;
 
 
 #define RS485_TXEN 4
+
+#ifdef DEBUG_UNO
 SoftwareSerial rs485(RS485_RXD, RS485_TXD); // RX, TX
 HMWRS485 hmwrs485(&rs485, RS485_TXEN, &Serial);
-HMWModule hmwmodule(&hmwrs485);
-
+#else
+HMWRS485 hmwrs485(&Serial, RS485_TXEN);  // keine Debug-Ausgaben
+#endif
+HMWModule* hmwmodule;   // wird in setup initialisiert
 
 // Read all inputs/outputs
 // setzt Bits in portStatus[]
@@ -207,6 +211,13 @@ void setup()
 	//   timer0 = 255
    Serial.begin(57600);
    rs485.begin(19200);
+
+   // TODO device type: what is correct device type? 0x11 !=HMW-IO-12-FM
+   	// serial number
+   	// address
+   	// TODO: serial number und address sollte von woanders kommen
+    HMWDevice* hmwdevice = new HMWDevice();
+   	hmwmodule = new HMWModule(hmwdevice, &hmwrs485, 0x11, "HHB2703111", 0x42380123);
 // config aus EEPROM lesen
    setModuleConfig();
 
@@ -272,7 +283,7 @@ void loop()
  * for i = 1 to CANNEL_IO_COUNT
         if portStatus(i).0 = 0 then                                            ' Port ist Input oder Output
 
-           if portStatus(i).1 = 0 then                                         ' Key am port ist gedrückt
+           if portStatus(i).1 = 0 then                                         ' Key am port ist gedrï¿½ckt
 
               if keyPressTimer(i) = 0 then
                  keyPressTimer(i) = 2
@@ -280,7 +291,7 @@ void loop()
 
               if keyPressTimer(i) = 100 then
                  set portStatus(i).2                                           ' set status long keypress detected
-                 keyPressTimer(i) = 80                                         ' counter für repeated longpress
+                 keyPressTimer(i) = 80                                         ' counter fï¿½r repeated longpress
                                                                                ' Muss noch validiert werden
                  debug "longKey " ; i ; " - " ; keyPressTimer(i)
               end if
@@ -308,8 +319,8 @@ void loop()
  '* Config Timer0 = Timer , Prescale = 1024
  '* Timer 0 ist ein 8Bit Timer Bei Prescaler 1024 und 16 Mhz Taktfrequenz des AVR
  '* wird der Interrupt ca 61 mal pro Sekunde aufgerufen. Daher setzen wir den Timer
- '* zu begin der isr auf einen Startwert 100. Der Timer braucht dann für einen Überlauf
- '* nur noch 156 schritte wieter zu zählen. Somit ergibt sich dann ein Interrupt ca. alle 100 ms.
+ '* zu begin der isr auf einen Startwert 100. Der Timer braucht dann fï¿½r einen ï¿½berlauf
+ '* nur noch 156 schritte wieter zu zï¿½hlen. Somit ergibt sich dann ein Interrupt ca. alle 100 ms.
  '*
  '**
  isr_timer0:
