@@ -28,7 +28,7 @@ class HMWDeviceBase {
 
 class HMWModule {
 public:
-	HMWModule(HMWDeviceBase*, HMWRS485*, byte, char*, unsigned long); // rs485, device type, serial, address
+	HMWModule(HMWDeviceBase*, HMWRS485*, byte); // rs485, device type
 	virtual ~HMWModule();
 
 	void processEvents();
@@ -38,11 +38,17 @@ public:
 	void broadcastInfoMessage(byte, unsigned int);   // channel, info
 
 	byte deviceType;        // device type @ 0x7FF1 in FlashRom  TODO: Not really...
-	char deviceSerial[10];    // string of device serial @ 0x7FF2 - 0x7FFB in FlashRom TODO: Not really...
+
+	// write to EEPROM, but only if not "value" anyway
+	// the uppermost 4 bytes are reserved for the device address and can only be changed if privileged = true
+	void writeEEPROM(int address, byte value, bool privileged = false );
 
 private:
 	HMWRS485* hmwrs485;
 	HMWDeviceBase* device;
+
+	void readAddressFromEEPROM();
+	void determineSerial(byte*);
 
 	void processEventKey();
     void processEventSetLevel();

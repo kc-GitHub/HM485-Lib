@@ -13,14 +13,12 @@
 
 #include <EEPROM.h>
 
-HMWModule::HMWModule(HMWDeviceBase* _device, HMWRS485* _hmwrs485, byte _deviceType, char* _deviceSerial, unsigned long _deviceAddress ) {
+HMWModule::HMWModule(HMWDeviceBase* _device, HMWRS485* _hmwrs485, byte _deviceType) {
   device = _device;
   hmwrs485 = _hmwrs485;
   deviceType = _deviceType;
-  // TODO: Keine Ahnung, ob es genau 10 Zeichen sein muessen
-  memcpy(deviceSerial, _deviceSerial, 10);
   // TODO: Entscheiden, ob die device address zum Protokoll oder zum Modul gehoert
-  hmwrs485->txSenderAddress = _deviceAddress;
+  readAddressFromEEPROM();
 }
 
 HMWModule::~HMWModule() {
@@ -65,6 +63,14 @@ void HMWModule::processEvents() {
 
       sendAck = 1;
       switch(hmwrs485->frameData[0]){
+         case '@':                                      // HBW-specifics
+           if(hmwrs485->frameData[1] == 'a' && hmwrs485->frameDataLength == 6) {  // "a" -> address set
+        	 // TODO: Avoid "central" addresses (like 0000...)
+        	 for(byte i = 0; i < 4; i++)
+        	   writeEEPROM(E2END - 3 + i, hmwrs485->frameData[i + 2], true);
+           };
+           readAddressFromEEPROM();
+           break;
          case '!':                                                             // reset the Module
             // reset the Module jump after the bootloader
         	// Nur wenn das zweite Zeichen auch ein "!" ist
@@ -106,8 +112,7 @@ void HMWModule::processEvents() {
             	hmwdebug(F("write eeprom"));
                adrStart = ((unsigned int)(hmwrs485->frameData[1]) << 8) | hmwrs485->frameData[2];  // start adress of eeprom
                for(byte i = 4; i < hmwrs485->frameDataLength; i++){
-            	   // TODO: "smart" EEPROM write
-            	 EEPROM.write(adrStart+i-4, hmwrs485->frameData[i]);
+            	 writeEEPROM(adrStart+i-4, hmwrs485->frameData[i]);
                }
             };
             break;
@@ -127,7 +132,7 @@ void HMWModule::processEvents() {
             processEventSetLock();
             break;
          case 'n':                                       // Seriennummer
-        	memcpy(hmwrs485->txFrameData, deviceSerial,10);
+        	determineSerial(hmwrs485->txFrameData);
         	hmwrs485->txFrameDataLength = 10;
         	sendAck = 0;
         	break;
@@ -245,7 +250,7 @@ void HMWModule::processEventKey(){
       hmwrs485->txFrameData[3] = 0; // MODULE_HARDWARE_VERSION;
       hmwrs485->txFrameData[4] = MODULE_FIRMWARE_VERSION / 0x100;
       hmwrs485->txFrameData[5] = MODULE_FIRMWARE_VERSION & 0xFF;
-      memcpy(&hmwrs485->txFrameData[6], deviceSerial, 10);
+      determineSerial(hmwrs485->txFrameData + 6);
       hmwrs485->sendFrame();
    };
 
@@ -272,4 +277,37 @@ void HMWModule::processEventKey(){
   	   hmwrs485->txFrameData[2] = info / 0x100;
   	   hmwrs485->txFrameData[3] = info & 0xFF;
   	   hmwrs485->sendFrame();
+     };
+
+
+     void HMWModule::writeEEPROM(int address, byte value, bool privileged ) {
+       // save uppermost 4 bytes
+       if(!privileged && (address > E2END - 4))
+    	 return;
+       // write if not anyway the same value
+   	   if(value != EEPROM.read(address))
+   		 EEPROM.write(address, value);
+     };
+
+
+     // read device address from EEPROM
+     // TODO: Avoid "central" addresses (like 0000...)
+     void HMWModule::readAddressFromEEPROM(){
+       hmwrs485->txSenderAddress = 0;
+       for(byte i = 0; i < 4; i++){
+    	 hmwrs485->txSenderAddress <<= 8;
+    	 hmwrs485->txSenderAddress |= EEPROM.read(E2END - 3 + i);
+       }
+       if(hmwrs485->txSenderAddress == 0xFFFFFFFF)
+    	   hmwrs485->txSenderAddress = 0x42FFFFFF;
+     }
+
+
+     void HMWModule::determineSerial(byte* buf) {
+       char numAsStr[20];
+       sprintf(numAsStr, "%07lu", hmwrs485->txSenderAddress % 10000000L );
+       buf[0] = 'H';
+       buf[1] = 'B';
+       buf[2] = 'W';
+       memcpy(buf+3, numAsStr, 7);
      };

@@ -45,8 +45,6 @@
 // Do not remove the include below
 #include "HBW-1W-T10.h"
 
-#include <EEPROM.h>
-
 #if DEBUG_VERSION == DEBUG_UNO || DEBUG_VERSION == DEBUG_UNIV
 // TODO: Eigene SoftwareSerial
 #include <SoftwareSerial.h>
@@ -57,6 +55,9 @@
 
 // OneWire
 #include <OneWire.h>
+
+// EEPROM
+#include <EEPROM.h>
 
 // HM Wired Protokoll
 #include "HMWRS485.h"
@@ -108,21 +109,6 @@ int lastSentTemp[MAX_SENSORS];
 long lastSentTime[MAX_SENSORS];
 
 
-// write config to EEPROM in a hopefully smart way
-void writeConfig(){
-    byte* ptr;
-    byte data;
-	// EEPROM lesen und schreiben
-	ptr = (byte*)(sensors);
-	// TODO: make "smart" EEPROM write a module routine
-	for(int address = 0; address < sizeof(sensors[0]) * MAX_SENSORS; address++){
-	  if(*ptr != EEPROM.read(address + 0x10))
-		  EEPROM.write(address + 0x10, *ptr);
-	  ptr++;
-    };
-};
-
-
 // OneWire
 OneWire myWire(ONEWIRE_PIN);
 
@@ -136,6 +122,19 @@ HMWRS485 hmwrs485(&Serial, RS485_TXEN);
 HMWRS485 hmwrs485(&Serial, RS485_TXEN);  // keine Debug-Ausgaben
 #endif
 HMWModule* hmwmodule;   // wird in setup initialisiert
+
+
+// write config to EEPROM in a hopefully smart way
+void writeConfig(){
+    byte* ptr;
+    byte data;
+	// EEPROM lesen und schreiben
+	ptr = (byte*)(sensors);
+	for(int address = 0; address < sizeof(sensors[0]) * MAX_SENSORS; address++){
+	  hmwmodule->writeEEPROM(address + 0x10, *ptr);
+	  ptr++;
+    };
+};
 
 
 // Sensor Adressen lesen
@@ -456,11 +455,8 @@ void setup()
    sensorAddressesGet();
 
 	// device type: 0x81
-	// serial number
-	// address
-	// TODO: serial number und address sollte von woanders kommen
    // TODO: Modultyp irgendwo als define
- 	hmwmodule = new HMWModule(&hmwdevice, &hmwrs485, 0x81, "HBW4073471", 0x42FFFFFF);
+ 	hmwmodule = new HMWModule(&hmwdevice, &hmwrs485, 0x81);
 
     hmwdebug("Huhu\n");
 
