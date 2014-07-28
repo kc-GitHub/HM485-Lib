@@ -43,7 +43,7 @@
 #define DEBUG_VERSION DEBUG_UNIV
 
 // Do not remove the include below
-#include "HMWOneWire.h"
+#include "HBW-1W-T10.h"
 
 #include <EEPROM.h>
 
@@ -460,7 +460,7 @@ void setup()
 	// address
 	// TODO: serial number und address sollte von woanders kommen
    // TODO: Modultyp irgendwo als define
- 	hmwmodule = new HMWModule(&hmwdevice, &hmwrs485, 0x81, "HHB2703110", 0x42380122);
+ 	hmwmodule = new HMWModule(&hmwdevice, &hmwrs485, 0x81, "HBW4073471", 0x42FFFFFF);
 
     hmwdebug("Huhu\n");
 
