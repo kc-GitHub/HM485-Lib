@@ -31,12 +31,8 @@
 // D3: TXD, DI des RS485-Treiber
 // D4: Direction (DE/-RE) Driver/Receiver Enable vom RS485-Treiber
 //
-// D5: motion detection/ light on (Pin 4) / Kanal 1
-// D6: light off (Pin6)  / Kanal 2
-#ifdef HBW_SEC_MDIR_IS_HMW_LC_SW2
-// D7: Schalter 1 / Kanal 3 only for compatibility
-// D8: Schalter 2 / Kanal 4 only for compatibility
-#endif
+// A0: motion detection/ light on (Pin 4) / Kanal 1
+// A1: light off (Pin6)  / Kanal 2
 // D12: Sensor clock 50 Hz (Pin 1)
 // D13: Status-LED
 
@@ -65,15 +61,15 @@
 #define RS485_TXD 3
 #define RS485_TXEN 4
 
-#ifdef HBW_SEC_MDIR_IS_HMW_LC_SW2
-#define I01 A0
-#define I02 A1
-#define CHANNEL_IO_COUNT 4
-#else
 #define MD_LON A0
 #define LOFF A1
+
+#ifdef HBW_SEC_MDIR_IS_HMW_LC_SW2
+#define CHANNEL_IO_COUNT 4
+#else
 #define CHANNEL_IO_COUNT 2
 #endif
+
 #define SENS_CLOCK 12
 #define LED 13
 
@@ -84,34 +80,12 @@
 
 #define SENS_HIGH_PEGEL 500
 
-// Das folgende Define kann benutzt werden, wenn ueber die
-// Kanaele "geloopt" werden soll
-// als Define, damit es zentral definiert werden kann, aber keinen (globalen) Speicherplatz braucht
-//#define CHANNEL_PORTS byte channelPorts[CHANNEL_IO_COUNT] = { CHANNEL_INIT_LIST};
-
 // Port Status, d.h. Port ist auf 0 oder 1
-byte portState = 0;
+byte channelState = 0;
 byte lastState = 0;
-// TODO: wird wirklich int gebraucht oder tut's auch byte?
-//unsigned int keyLongPressTime[2];
-//byte loggingTime;
 
 // Config
 hmw_config config;
-
-
-#if 0
-// Read all inputs/outputs
-// setzt Bits in portStatus[]
-void readPins() {
-  CHANNEL_PORTS
-  for(byte i = 0; i < CHANNEL_IO_COUNT; i++){
-	  // Pin lesen und Bit in portStatus setzen
-	  // TODO: Check if this really works
-	  bitWrite(portStatus[i/8],i%8,digitalRead(channelPorts[i]));
-  }
-}
-#endif
 
 // Klasse fuer Callbacks vom Protokoll
 class HMWDevice : public HMWDeviceBase {
@@ -125,12 +99,12 @@ class HMWDevice : public HMWDeviceBase {
       // now set pin
 
       if(level == 0xFF) {   // toggle
-    	level =  ( (portState >> channel) & 0x1 );
+    	level =  ( (channelState >> channel) & 0x1 );
       }
       else if(level) // on
-    	portState |= ( HIGH << channel );
+    	channelState |= ( HIGH << channel );
       else
-    	portState &= ~( HIGH << channel );
+    	channelState &= ~( HIGH << channel );
 #else
       return;
 #endif
@@ -141,7 +115,7 @@ class HMWDevice : public HMWDeviceBase {
 	  if(channel >= 8) return 0;
 	  // read
 
-	  if( (portState & (1 << channel) ) ) return 0xC800;
+	  if( (channelState & (1 << channel) ) ) return 0xC800;
 	  else return 0;
 	};
 
@@ -154,11 +128,7 @@ class HMWDevice : public HMWDeviceBase {
 		 ptr++;
 	   };
 	// defaults setzen, falls nicht sowieso klar
-	   if(config.logging_time == 0xFF) config.logging_time = 20;
-	   if(config.central_address == 0xFFFFFFFF) config.central_address = 0x00000001;
-	   for(byte channel = 0; channel < HMW_CONFIG_NUM_KEYS; channel++){
-		   if(config.keys[channel].long_press_time == 0xFF) config.keys[channel].long_press_time = 10;
-	   };
+
 	};
 
 };
@@ -167,21 +137,15 @@ class HMWDevice : public HMWDeviceBase {
 
 void setModuleConfig(HMWDevice* device) {
 
-// read config from EEPROM
-  device->readConfig();
+	// read config from EEPROM
+	device->readConfig();
 
-#ifdef HBW_SEC_MDIR_IS_HMW_LC_SW2
-  pinMode(O03,OUTPUT);
-  digitalWrite(O03,LOW);
-  pinMode(O04,OUTPUT);
-  digitalWrite(O04,LOW);
+	pinMode(SENS_CLOCK,OUTPUT);
+	digitalWrite(SENS_CLOCK,LOW);
 
-  pinMode(SENS_CLOCK,OUTPUT);
-  digitalWrite(SENS_CLOCK,LOW);
-#else
-
-  pinMode(SENS_CLOCK,OUTPUT);
-  digitalWrite(SENS_CLOCK,LOW);
+#ifdef HBW_SECMDIR_USE_STATE_LED
+	pinMode(LED,OUTPUT);
+	digitalWrite(LED,HIGH);
 #endif
 }
 
@@ -193,10 +157,10 @@ void setLightState(bool on)
 {
 	if (on)
 	{
-		bitSet(portState,LIGHT_STATUS_CHANNEL);
+		bitSet(channelState,LIGHT_STATUS_CHANNEL);
 	}else
 	{
-		bitClear(portState,LIGHT_STATUS_CHANNEL);
+		bitClear(channelState,LIGHT_STATUS_CHANNEL);
 	}
 
 
@@ -205,10 +169,10 @@ void setMDState(bool on)
 {
 	if (on)
 	{
-		bitSet(portState,MOTION_STATUS_CHANNEL);
+		bitSet(channelState,MOTION_STATUS_CHANNEL);
 	}else
 	{
-		bitClear(portState,MOTION_STATUS_CHANNEL);
+		bitClear(channelState,MOTION_STATUS_CHANNEL);
 	}
 
 }
@@ -270,13 +234,10 @@ void checkSensor(void)
 
 }
 
-
-
-
 //The setup function is called once at startup of the sketch
 void setup()
 {
-	portState = 0;
+	channelState = 0;
 
 	pinMode(RS485_RXD, INPUT);
 	pinMode(RS485_TXD, OUTPUT);
@@ -304,70 +265,6 @@ void setup()
   	MsTimer2::start();
 }
 
-#if 0
-// Tasten
-void handleKeys() {
-// TODO: Vielleicht besser eine Klasse HMWKey oder so anlegen
-  // millis() zum Zeitpunkt eines Tastendrucks
-  // verwendet zum Entprellen, lange Tastendruecke und wiederholtes Senden langer Tastendruecke
-  static unsigned long keyPressedMillis[2] = {0,0};   // Wir haben zwei Inputs
-  static byte keyPressNum[2] = {0,0};
-  // wann wurde das letzte mal "short" gesendet?
-  static unsigned long lastSentLong[2] = {0,0};
-
-  long now = millis();
-
-  for(byte i = 0; i < 2; i++){
-// INPUT_LOCKED?
-   if(!config.keys[i].input_locked) continue;   // inverted logic, locked = 0
-// Taste nicht gedrueckt (negative Logik wegen INPUT_PULLUP)
-   if(bitRead(portStatus[i/8],i%8)){
-	 // Taste war auch vorher nicht gedrueckt kann ignoriert werden
-     // Taste war vorher gedrueckt?
-	 if(keyPressedMillis[i]){
-	   // entprellen, nur senden, wenn laenger als 50ms gedrueckt
-	   // aber noch kein "long" gesendet
-	   if(now - keyPressedMillis[i] >= 50 && !lastSentLong[i]){
-	     keyPressNum[i]++;
-// TODO: muss das eigentlich an die Zentrale gehen?
-	     hmwmodule->broadcastKeyEvent(i,keyPressNum[i]);
-	     // gleich ein Announce hinterher
-	     // TODO: Vielleicht gehoert das in den allgemeinen Teil
-	     hmwmodule->broadcastAnnounce(i);
-	   };
-	   keyPressedMillis[i] = 0;
-	 };
-   }else{
-// Taste gedrueckt
-	 // Taste war vorher schon gedrueckt
-	 if(keyPressedMillis[i]){
-       // muessen wir ein "long" senden?
-	   if(lastSentLong[i]) {   // schon ein LONG gesendet
-		  if(now - lastSentLong[i] >= 300){  // alle 300ms wiederholen
-			// keyPressNum nicht erhoehen
-			lastSentLong[i] = now ? now : 1; // der Teufel ist ein Eichhoernchen
-			// TODO: muss das eigentlich an die Zentrale gehen?
-			hmwmodule->broadcastKeyEvent(i,keyPressNum[i], true);
-		  };
-	   }else if(millis() - keyPressedMillis[i] >= long(config.keys[i].long_press_time) * 100) {
-		  // erstes LONG
-		  keyPressNum[i]++;
-	      lastSentLong[i] = millis();
-		  // TODO: muss das eigentlich an die Zentrale gehen?
-		  hmwmodule->broadcastKeyEvent(i,keyPressNum[i], true);
-	      // gleich ein Announce hinterher
-		  // TODO: Vielleicht gehoert das in den allgemeinen Teil
-		  hmwmodule->broadcastAnnounce(i);
-	   };
-	 }else{
-	   // Taste war vorher nicht gedrueckt
-	   keyPressedMillis[i] = now ? now : 1; // der Teufel ist ein Eichhoernchen
-	   lastSentLong[i] = 0;
-	 }
-   }
-  }
-}
-#endif
 
 // The loop function is called in an endless loop
 void loop()
@@ -384,9 +281,9 @@ void loop()
    };
 
 
-   if (lastState != (portState & STATE_MASK) )
+   if (lastState != (channelState & STATE_MASK) )
    {
-	   if ( bitRead(lastState,LIGHT_STATUS_CHANNEL) != bitRead(portState,LIGHT_STATUS_CHANNEL))
+	   if ( bitRead(lastState,LIGHT_STATUS_CHANNEL) != bitRead(channelState,LIGHT_STATUS_CHANNEL))
        {
 		   hmwrs485.debug("change LightState\n");
 		   // TODO: muss das eigentlich an die Zentrale gehen?
@@ -398,7 +295,7 @@ void loop()
 		   keyPressNum[LIGHT_STATUS_CHANNEL]++;
        }
 
-	   if ( bitRead(lastState,MOTION_STATUS_CHANNEL) != bitRead(portState,MOTION_STATUS_CHANNEL))
+	   if ( bitRead(lastState,MOTION_STATUS_CHANNEL) != bitRead(channelState,MOTION_STATUS_CHANNEL))
 	   {
 		   hmwrs485.debug("change LightState\n");
 	       // TODO: muss das eigentlich an die Zentrale gehen?
@@ -409,21 +306,9 @@ void loop()
 
 	      keyPressNum[MOTION_STATUS_CHANNEL]++;
 	   }
-	   lastState = portState & STATE_MASK;
+	   lastState = channelState & STATE_MASK;
    }
-// Check Keys
-// Hier werden alle Ein-/Ausgaenge gelesen
-// Pins lesen und nach portStatus[] schreiben
-  //readPins();
 
-// Tasten abfragen, entprellen etc.
-  //handleKeys();
-
-  // hmwTxTargetAdress(4)                   the target adress
-  // hmwTxFrameControllByte                 the controll byte
-  // hmwTxSenderAdress(4)                   the sender adress
-  // hmwTxFrameDataLength                   the length of data to send
-  // hmwTxFrameData(MAX_RX_FRAME_LENGTH)    the data array to send
 }
 
 
