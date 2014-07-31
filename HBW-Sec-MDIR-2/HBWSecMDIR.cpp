@@ -60,6 +60,7 @@
 #define RS485_RXD 2
 #define RS485_TXD 3
 #define RS485_TXEN 4
+#define SENSOR_CHECK_INTERVALL 500
 
 #define MD_LON A0
 #define LOFF A1
@@ -261,7 +262,7 @@ void setup()
 
 	hmwrs485.debug("huhu\n");
 
-  	MsTimer2::set(500, checkSensor); // 500ms period
+  	MsTimer2::set(SENSOR_CHECK_INTERVALL, checkSensor); // 500ms period
   	MsTimer2::start();
 }
 
