@@ -1,0 +1,1412 @@
+
+HBW_Boot_atmega328.elf:     file format elf32-avr
+
+Sections:
+Idx Name          Size      VMA       LMA       File off  Algn
+  0 .text         000006a8  00007800  00007800  00000074  2**1
+                  CONTENTS, ALLOC, LOAD, READONLY, CODE
+  1 .version      00000002  00007ffe  00007ffe  0000071c  2**0
+                  CONTENTS, READONLY
+  2 .bss          000000f4  00800100  00800100  0000071c  2**0
+                  ALLOC
+  3 .debug_aranges 00000028  00000000  00000000  0000071e  2**0
+                  CONTENTS, READONLY, DEBUGGING
+  4 .debug_pubnames 000001e1  00000000  00000000  00000746  2**0
+                  CONTENTS, READONLY, DEBUGGING
+  5 .debug_info   0000067c  00000000  00000000  00000927  2**0
+                  CONTENTS, READONLY, DEBUGGING
+  6 .debug_abbrev 000001ee  00000000  00000000  00000fa3  2**0
+                  CONTENTS, READONLY, DEBUGGING
+  7 .debug_line   000008f6  00000000  00000000  00001191  2**0
+                  CONTENTS, READONLY, DEBUGGING
+  8 .debug_frame  00000100  00000000  00000000  00001a88  2**2
+                  CONTENTS, READONLY, DEBUGGING
+  9 .debug_str    0000036d  00000000  00000000  00001b88  2**0
+                  CONTENTS, READONLY, DEBUGGING
+ 10 .debug_loc    00000509  00000000  00000000  00001ef5  2**0
+                  CONTENTS, READONLY, DEBUGGING
+ 11 .debug_ranges 000000b8  00000000  00000000  000023fe  2**0
+                  CONTENTS, READONLY, DEBUGGING
+
+Disassembly of section .text:
+
+00007800 <main>:
+#define buff    ((uint8_t*)(RAMSTART))
+
+
+
+/* main program starts here */
+int main(void) {
+    7800:	11 24       	eor	r1, r1
+#ifdef __AVR_ATmega8__
+  SP=RAMEND;  // This is done by hardware reset
+#endif
+
+  // Adaboot no-wait mod
+  ch = MCUSR;
+    7802:	84 b7       	in	r24, 0x34	; 52
+  MCUSR = 0;
+    7804:	14 be       	out	0x34, r1	; 52
+  if (!(ch & _BV(EXTRF))) appStart();
+    7806:	81 ff       	sbrs	r24, 1
+    7808:	0f d1       	rcall	.+542    	; 0x7a28 <appStart>
+  
+
+#if LED_START_FLASHES > 0
+  // Set up Timer 1 for timeout counter
+  TCCR1B = _BV(CS12) | _BV(CS10); // div 1024
+    780a:	85 e0       	ldi	r24, 0x05	; 5
+    780c:	80 93 81 00 	sts	0x0081, r24
+  UCSRA = _BV(U2X); //Double speed mode USART
+  UCSRB = _BV(RXEN) | _BV(TXEN);  // enable Rx & Tx
+  UCSRC = _BV(URSEL) | _BV(UCSZ1) | _BV(UCSZ0);  // config USART; 8N1
+  UBRRL = (uint8_t)( (F_CPU + BAUD_RATE * 4L) / (BAUD_RATE * 8L) - 1 );
+#else
+  UCSR0A = _BV(U2X0); //Double speed mode USART0
+    7810:	82 e0       	ldi	r24, 0x02	; 2
+    7812:	80 93 c0 00 	sts	0x00C0, r24
+  UCSR0B = _BV(RXEN0) | _BV(TXEN0);
+    7816:	88 e1       	ldi	r24, 0x18	; 24
+    7818:	80 93 c1 00 	sts	0x00C1, r24
+//  UCSR0C = _BV(UCSZ00) | _BV(UCSZ01);
+  UCSR0C = _BV(UCSZ00) | _BV(UCSZ01) | _BV(UPM01);	// Parity Even
+    781c:	86 e2       	ldi	r24, 0x26	; 38
+    781e:	80 93 c2 00 	sts	0x00C2, r24
+  UBRR0L = (uint8_t)( (F_CPU + BAUD_RATE * 4L) / (BAUD_RATE * 8L) - 1 );
+    7822:	87 e6       	ldi	r24, 0x67	; 103
+    7824:	80 93 c4 00 	sts	0x00C4, r24
+#endif
+
+
+
+  // Set up watchdog to trigger after 8s
+  watchdogConfig(WATCHDOG_8S);
+    7828:	89 e2       	ldi	r24, 0x29	; 41
+    782a:	f8 d0       	rcall	.+496    	; 0x7a1c <watchdogConfig>
+
+  /* Set LED pin as output */
+  LED_DDR |= _BV(LED);
+    782c:	25 9a       	sbi	0x04, 5	; 4
+
+  /* Set Enable-Pin as output */
+  ENBL_DDR |= _BV(ENBL);
+    782e:	52 9a       	sbi	0x0a, 2	; 10
+  UART_DDR |= _BV(UART_TX_BIT);
+#endif
+
+#if LED_START_FLASHES > 0
+  /* Flash onboard LED to signal entering of bootloader */
+  flash_led(LED_START_FLASHES * 2);
+    7830:	8a e0       	ldi	r24, 0x0A	; 10
+    7832:	dc d0       	rcall	.+440    	; 0x79ec <flash_led>
+#endif
+
+
+  programmerID = 0x00000002;
+    7834:	82 e0       	ldi	r24, 0x02	; 2
+    7836:	90 e0       	ldi	r25, 0x00	; 0
+    7838:	a0 e0       	ldi	r26, 0x00	; 0
+    783a:	b0 e0       	ldi	r27, 0x00	; 0
+    783c:	80 93 e4 01 	sts	0x01E4, r24
+    7840:	90 93 e5 01 	sts	0x01E5, r25
+    7844:	a0 93 e6 01 	sts	0x01E6, r26
+    7848:	b0 93 e7 01 	sts	0x01E7, r27
+  clientID = 0x0000ABCD;
+    784c:	8d ec       	ldi	r24, 0xCD	; 205
+    784e:	9b ea       	ldi	r25, 0xAB	; 171
+    7850:	a0 e0       	ldi	r26, 0x00	; 0
+    7852:	b0 e0       	ldi	r27, 0x00	; 0
+    7854:	80 93 e9 01 	sts	0x01E9, r24
+    7858:	90 93 ea 01 	sts	0x01EA, r25
+    785c:	a0 93 eb 01 	sts	0x01EB, r26
+    7860:	b0 93 ec 01 	sts	0x01EC, r27
+  txDataIndex = 0;	
+    7864:	10 92 dd 01 	sts	0x01DD, r1
+    7868:	cc 24       	eor	r12, r12
+    786a:	dd 24       	eor	r13, r13
+      verifySpace();
+
+    }
+    else {
+      // This covers the response to commands like STK_ENTER_PROGMODE
+	  responseLength = 2;
+    786c:	12 e0       	ldi	r17, 0x02	; 2
+    786e:	b1 2e       	mov	r11, r17
+      while (--length);
+    }
+    // Get device signature bytes  
+    else if(ch == STK_READ_SIGN) {
+      // READ SIGN - return what Avrdude wants to hear
+	  responseLength = 5;
+    7870:	b5 e0       	ldi	r27, 0x05	; 5
+    7872:	9b 2e       	mov	r9, r27
+      ch = SPM_PAGESIZE / 2;
+      do {
+        uint16_t a;
+        a = *bufPtr++;
+        a |= (*bufPtr++) << 8;
+        __boot_page_fill_short((uint16_t)(void*)addrPtr,a);
+    7874:	77 24       	eor	r7, r7
+    7876:	73 94       	inc	r7
+      __boot_page_write_short((uint16_t)(void*)address);
+      boot_spm_busy_wait();
+
+#if defined(RWWSRE)
+      // Reenable read access to flash
+      boot_rww_enable();
+    7878:	a1 e1       	ldi	r26, 0x11	; 17
+    787a:	8a 2e       	mov	r8, r26
+	  while (--length);
+	  
+	  	  
+      // If we are in NRWW section, page erase has to be delayed until now.
+      // Todo: Take RAMPZ into account
+      if (address >= NRWWSTART) __boot_page_erase_short((uint16_t)(void*)address);
+    787c:	f3 e0       	ldi	r31, 0x03	; 3
+    787e:	af 2e       	mov	r10, r31
+
+  /* Forever loop */
+  for (;;) {
+    /* get character from UART */
+      
+    ch = rxch();
+    7880:	0e d2       	rcall	.+1052   	; 0x7c9e <rxch>
+	
+    if(ch == STK_GET_PARAMETER) {
+    7882:	81 34       	cpi	r24, 0x41	; 65
+    7884:	71 f4       	brne	.+28     	; 0x78a2 <main+0xa2>
+	  responseLength = 3;
+    7886:	a0 92 e3 01 	sts	0x01E3, r10
+	  uint8_t which = rxch();
+    788a:	09 d2       	rcall	.+1042   	; 0x7c9e <rxch>
+    788c:	08 2f       	mov	r16, r24
+      verifySpace();
+    788e:	fc d2       	rcall	.+1528   	; 0x7e88 <verifySpace>
+      if (which == 0x82) {
+    7890:	02 38       	cpi	r16, 0x82	; 130
+    7892:	11 f0       	breq	.+4      	; 0x7898 <main+0x98>
+		// Send optiboot version as "minor SW version"
+		txch(OPTIBOOT_MINVER);
+      }
+	  else if (which == 0x81) {
+    7894:	01 38       	cpi	r16, 0x81	; 129
+    7896:	11 f4       	brne	.+4      	; 0x789c <main+0x9c>
+		txch(OPTIBOOT_MAJVER);
+    7898:	84 e0       	ldi	r24, 0x04	; 4
+    789a:	01 c0       	rjmp	.+2      	; 0x789e <main+0x9e>
+      }
+	  else {
+	
+		// * GET PARAMETER returns a generic 0x03 reply for
+        // * other parameters - enough to keep Avrdude happy
+	 	txch(0x03);
+    789c:	83 e0       	ldi	r24, 0x03	; 3
+    789e:	e0 d2       	rcall	.+1472   	; 0x7e60 <txch>
+    78a0:	a0 c0       	rjmp	.+320    	; 0x79e2 <main+0x1e2>
+      }
+    }
+    else if(ch == STK_SET_DEVICE) {
+    78a2:	82 34       	cpi	r24, 0x42	; 66
+    78a4:	21 f4       	brne	.+8      	; 0x78ae <main+0xae>
+	  responseLength = 2;
+    78a6:	b0 92 e3 01 	sts	0x01E3, r11
+      // SET DEVICE is ignored
+      rxNch(20);
+    78aa:	84 e1       	ldi	r24, 0x14	; 20
+    78ac:	05 c0       	rjmp	.+10     	; 0x78b8 <main+0xb8>
+    }
+    else if(ch == STK_SET_DEVICE_EXT) {
+    78ae:	85 34       	cpi	r24, 0x45	; 69
+    78b0:	29 f4       	brne	.+10     	; 0x78bc <main+0xbc>
+	  responseLength = 2;
+    78b2:	b0 92 e3 01 	sts	0x01E3, r11
+      // SET DEVICE EXT is ignored
+      rxNch(5);
+    78b6:	85 e0       	ldi	r24, 0x05	; 5
+    78b8:	ef d2       	rcall	.+1502   	; 0x7e98 <rxNch>
+    78ba:	93 c0       	rjmp	.+294    	; 0x79e2 <main+0x1e2>
+    }
+    else if(ch == STK_LOAD_ADDRESS) {
+    78bc:	85 35       	cpi	r24, 0x55	; 85
+    78be:	89 f4       	brne	.+34     	; 0x78e2 <main+0xe2>
+	  responseLength = 2;
+    78c0:	b0 92 e3 01 	sts	0x01E3, r11
+      // LOAD ADDRESS
+      uint16_t newAddress;
+      newAddress = rxch();
+    78c4:	ec d1       	rcall	.+984    	; 0x7c9e <rxch>
+      newAddress = (newAddress & 0xff) | (rxch() << 8);
+    78c6:	e8 2e       	mov	r14, r24
+    78c8:	ff 24       	eor	r15, r15
+    78ca:	e9 d1       	rcall	.+978    	; 0x7c9e <rxch>
+    78cc:	08 2f       	mov	r16, r24
+    78ce:	10 e0       	ldi	r17, 0x00	; 0
+    78d0:	10 2f       	mov	r17, r16
+    78d2:	00 27       	eor	r16, r16
+    78d4:	0e 29       	or	r16, r14
+    78d6:	1f 29       	or	r17, r15
+#ifdef RAMPZ
+      // Transfer top bit to RAMPZ
+      RAMPZ = (newAddress & 0x8000) ? 1 : 0;
+#endif
+      newAddress += newAddress; // Convert from word address to byte address
+    78d8:	00 0f       	add	r16, r16
+    78da:	11 1f       	adc	r17, r17
+      address = newAddress;
+      verifySpace();
+    78dc:	d5 d2       	rcall	.+1450   	; 0x7e88 <verifySpace>
+    78de:	68 01       	movw	r12, r16
+    78e0:	80 c0       	rjmp	.+256    	; 0x79e2 <main+0x1e2>
+    }
+    else if(ch == STK_UNIVERSAL) {
+    78e2:	86 35       	cpi	r24, 0x56	; 86
+    78e4:	31 f4       	brne	.+12     	; 0x78f2 <main+0xf2>
+	  responseLength = 3;
+    78e6:	a0 92 e3 01 	sts	0x01E3, r10
+      // UNIVERSAL command is ignored
+      rxNch(4);
+    78ea:	84 e0       	ldi	r24, 0x04	; 4
+    78ec:	d5 d2       	rcall	.+1450   	; 0x7e98 <rxNch>
+      txch(0x00);
+    78ee:	80 e0       	ldi	r24, 0x00	; 0
+    78f0:	d6 cf       	rjmp	.-84     	; 0x789e <main+0x9e>
+    }
+    // Write memory, length is big endian and is in bytes 
+    else if(ch == STK_PROG_PAGE) {
+    78f2:	84 36       	cpi	r24, 0x64	; 100
+    78f4:	09 f0       	breq	.+2      	; 0x78f8 <main+0xf8>
+    78f6:	42 c0       	rjmp	.+132    	; 0x797c <main+0x17c>
+	  responseLength = 2;
+    78f8:	b0 92 e3 01 	sts	0x01E3, r11
+      // PROGRAM PAGE - we support flash programming only, not EEPROM
+      uint8_t *bufPtr;
+      uint16_t addrPtr;
+
+      rxch();	
+    78fc:	d0 d1       	rcall	.+928    	; 0x7c9e <rxch>
+      length = rxch();
+    78fe:	cf d1       	rcall	.+926    	; 0x7c9e <rxch>
+    7900:	08 2f       	mov	r16, r24
+      rxch();
+    7902:	cd d1       	rcall	.+922    	; 0x7c9e <rxch>
+
+  
+      // If we are in RWW section, immediately start page erase
+      if (address < NRWWSTART) __boot_page_erase_short((uint16_t)(void*)address);
+    7904:	80 e0       	ldi	r24, 0x00	; 0
+    7906:	c8 16       	cp	r12, r24
+    7908:	80 e7       	ldi	r24, 0x70	; 112
+    790a:	d8 06       	cpc	r13, r24
+    790c:	18 f4       	brcc	.+6      	; 0x7914 <main+0x114>
+    790e:	f6 01       	movw	r30, r12
+    7910:	a7 be       	out	0x37, r10	; 55
+    7912:	e8 95       	spm
+    7914:	c0 e0       	ldi	r28, 0x00	; 0
+    7916:	d2 e0       	ldi	r29, 0x02	; 2
+
+      // While that is going on, read in page contents
+      bufPtr = buff;
+      do {
+		*bufPtr++ = rxch();
+    7918:	c2 d1       	rcall	.+900    	; 0x7c9e <rxch>
+    791a:	89 93       	st	Y+, r24
+      }
+	  while (--length);
+    791c:	0c 17       	cp	r16, r28
+    791e:	e1 f7       	brne	.-8      	; 0x7918 <main+0x118>
+	  
+	  	  
+      // If we are in NRWW section, page erase has to be delayed until now.
+      // Todo: Take RAMPZ into account
+      if (address >= NRWWSTART) __boot_page_erase_short((uint16_t)(void*)address);
+    7920:	f0 e0       	ldi	r31, 0x00	; 0
+    7922:	cf 16       	cp	r12, r31
+    7924:	f0 e7       	ldi	r31, 0x70	; 112
+    7926:	df 06       	cpc	r13, r31
+    7928:	18 f0       	brcs	.+6      	; 0x7930 <main+0x130>
+    792a:	f6 01       	movw	r30, r12
+    792c:	a7 be       	out	0x37, r10	; 55
+    792e:	e8 95       	spm
+
+      // Read command terminator, start reply
+      verifySpace();
+    7930:	ab d2       	rcall	.+1366   	; 0x7e88 <verifySpace>
+
+      // If only a partial page is to be programmed, the erase might not be complete.
+      // So check that here
+      boot_spm_busy_wait();
+    7932:	07 b6       	in	r0, 0x37	; 55
+    7934:	00 fc       	sbrc	r0, 0
+    7936:	fd cf       	rjmp	.-6      	; 0x7932 <main+0x132>
+    7938:	a6 01       	movw	r20, r12
+    793a:	a0 e0       	ldi	r26, 0x00	; 0
+    793c:	b2 e0       	ldi	r27, 0x02	; 2
+      bufPtr = buff;
+      addrPtr = (uint16_t)(void*)address;
+      ch = SPM_PAGESIZE / 2;
+      do {
+        uint16_t a;
+        a = *bufPtr++;
+    793e:	2c 91       	ld	r18, X
+    7940:	30 e0       	ldi	r19, 0x00	; 0
+        a |= (*bufPtr++) << 8;
+    7942:	11 96       	adiw	r26, 0x01	; 1
+    7944:	8c 91       	ld	r24, X
+    7946:	11 97       	sbiw	r26, 0x01	; 1
+    7948:	90 e0       	ldi	r25, 0x00	; 0
+    794a:	98 2f       	mov	r25, r24
+    794c:	88 27       	eor	r24, r24
+    794e:	82 2b       	or	r24, r18
+    7950:	93 2b       	or	r25, r19
+#define buff    ((uint8_t*)(RAMSTART))
+
+
+
+/* main program starts here */
+int main(void) {
+    7952:	12 96       	adiw	r26, 0x02	; 2
+      ch = SPM_PAGESIZE / 2;
+      do {
+        uint16_t a;
+        a = *bufPtr++;
+        a |= (*bufPtr++) << 8;
+        __boot_page_fill_short((uint16_t)(void*)addrPtr,a);
+    7954:	fa 01       	movw	r30, r20
+    7956:	0c 01       	movw	r0, r24
+    7958:	77 be       	out	0x37, r7	; 55
+    795a:	e8 95       	spm
+    795c:	11 24       	eor	r1, r1
+        addrPtr += 2;
+    795e:	4e 5f       	subi	r20, 0xFE	; 254
+    7960:	5f 4f       	sbci	r21, 0xFF	; 255
+      } while (--ch);
+    7962:	f2 e0       	ldi	r31, 0x02	; 2
+    7964:	a0 38       	cpi	r26, 0x80	; 128
+    7966:	bf 07       	cpc	r27, r31
+    7968:	51 f7       	brne	.-44     	; 0x793e <main+0x13e>
+
+      // Write from programming buffer
+      __boot_page_write_short((uint16_t)(void*)address);
+    796a:	f6 01       	movw	r30, r12
+    796c:	97 be       	out	0x37, r9	; 55
+    796e:	e8 95       	spm
+      boot_spm_busy_wait();
+    7970:	07 b6       	in	r0, 0x37	; 55
+    7972:	00 fc       	sbrc	r0, 0
+    7974:	fd cf       	rjmp	.-6      	; 0x7970 <main+0x170>
+
+#if defined(RWWSRE)
+      // Reenable read access to flash
+      boot_rww_enable();
+    7976:	87 be       	out	0x37, r8	; 55
+    7978:	e8 95       	spm
+    797a:	33 c0       	rjmp	.+102    	; 0x79e2 <main+0x1e2>
+#endif
+
+    }
+    // Read memory block mode, length is big endian.  
+    else if(ch == STK_READ_PAGE) {
+    797c:	84 37       	cpi	r24, 0x74	; 116
+    797e:	e1 f4       	brne	.+56     	; 0x79b8 <main+0x1b8>
+      // READ PAGE - we only read flash
+      rxch();
+    7980:	8e d1       	rcall	.+796    	; 0x7c9e <rxch>
+      length = rxch();
+    7982:	8d d1       	rcall	.+794    	; 0x7c9e <rxch>
+    7984:	e8 2e       	mov	r14, r24
+      rxch();
+    7986:	8b d1       	rcall	.+790    	; 0x7c9e <rxch>
+
+  	  responseLength = length + 2;
+    7988:	f2 e0       	ldi	r31, 0x02	; 2
+    798a:	ef 0e       	add	r14, r31
+    798c:	e0 92 e3 01 	sts	0x01E3, r14
+    7990:	8e ef       	ldi	r24, 0xFE	; 254
+    7992:	e8 0e       	add	r14, r24
+	  
+      verifySpace();
+    7994:	79 d2       	rcall	.+1266   	; 0x7e88 <verifySpace>
+    7996:	f6 01       	movw	r30, r12
+    7998:	fe 2c       	mov	r15, r14
+
+      do txch(pgm_read_byte_near(address++));
+    799a:	8f 01       	movw	r16, r30
+    799c:	0f 5f       	subi	r16, 0xFF	; 255
+    799e:	1f 4f       	sbci	r17, 0xFF	; 255
+    79a0:	84 91       	lpm	r24, Z+
+    79a2:	5e d2       	rcall	.+1212   	; 0x7e60 <txch>
+      while (--length);
+    79a4:	fa 94       	dec	r15
+    79a6:	f8 01       	movw	r30, r16
+    79a8:	c1 f7       	brne	.-16     	; 0x799a <main+0x19a>
+#define buff    ((uint8_t*)(RAMSTART))
+
+
+
+/* main program starts here */
+int main(void) {
+    79aa:	08 94       	sec
+    79ac:	c1 1c       	adc	r12, r1
+    79ae:	d1 1c       	adc	r13, r1
+    79b0:	ea 94       	dec	r14
+    79b2:	ce 0c       	add	r12, r14
+    79b4:	d1 1c       	adc	r13, r1
+    79b6:	15 c0       	rjmp	.+42     	; 0x79e2 <main+0x1e2>
+
+      do txch(pgm_read_byte_near(address++));
+      while (--length);
+    }
+    // Get device signature bytes  
+    else if(ch == STK_READ_SIGN) {
+    79b8:	85 37       	cpi	r24, 0x75	; 117
+    79ba:	49 f4       	brne	.+18     	; 0x79ce <main+0x1ce>
+      // READ SIGN - return what Avrdude wants to hear
+	  responseLength = 5;
+    79bc:	90 92 e3 01 	sts	0x01E3, r9
+      verifySpace();
+    79c0:	63 d2       	rcall	.+1222   	; 0x7e88 <verifySpace>
+      txch(SIGNATURE_0);
+    79c2:	8e e1       	ldi	r24, 0x1E	; 30
+    79c4:	4d d2       	rcall	.+1178   	; 0x7e60 <txch>
+      txch(SIGNATURE_1);
+    79c6:	85 e9       	ldi	r24, 0x95	; 149
+    79c8:	4b d2       	rcall	.+1174   	; 0x7e60 <txch>
+      txch(SIGNATURE_2);
+    79ca:	8f e0       	ldi	r24, 0x0F	; 15
+    79cc:	68 cf       	rjmp	.-304    	; 0x789e <main+0x9e>
+    }
+    else if (ch == 'Q') {
+    79ce:	81 35       	cpi	r24, 0x51	; 81
+    79d0:	29 f4       	brne	.+10     	; 0x79dc <main+0x1dc>
+      // Adaboot no-wait mod
+	  responseLength = 2;
+    79d2:	b0 92 e3 01 	sts	0x01E3, r11
+      watchdogConfig(WATCHDOG_16MS);
+    79d6:	88 e0       	ldi	r24, 0x08	; 8
+    79d8:	21 d0       	rcall	.+66     	; 0x7a1c <watchdogConfig>
+    79da:	02 c0       	rjmp	.+4      	; 0x79e0 <main+0x1e0>
+      verifySpace();
+
+    }
+    else {
+      // This covers the response to commands like STK_ENTER_PROGMODE
+	  responseLength = 2;
+    79dc:	b0 92 e3 01 	sts	0x01E3, r11
+      verifySpace();
+    79e0:	53 d2       	rcall	.+1190   	; 0x7e88 <verifySpace>
+    }
+    
+    
+    txch(STK_OK);
+    79e2:	80 e1       	ldi	r24, 0x10	; 16
+    79e4:	3d d2       	rcall	.+1146   	; 0x7e60 <txch>
+    79e6:	4c cf       	rjmp	.-360    	; 0x7880 <main+0x80>
+
+000079e8 <watchdogReset>:
+  txch(STK_INSYNC);
+}
+
+
+void watchdogReset() {
+  __asm__ __volatile__ (
+    79e8:	a8 95       	wdr
+    "wdr\n"
+  );
+}
+    79ea:	08 95       	ret
+
+000079ec <flash_led>:
+}
+#endif
+
+
+#if LED_START_FLASHES > 0
+void flash_led(uint8_t count) {
+    79ec:	0f 93       	push	r16
+    79ee:	1f 93       	push	r17
+    79f0:	cf 93       	push	r28
+    79f2:	df 93       	push	r29
+    79f4:	18 2f       	mov	r17, r24
+  do {
+    TCNT1 = -(F_CPU/(1024*16));
+    79f6:	c0 e3       	ldi	r28, 0x30	; 48
+    79f8:	dc ef       	ldi	r29, 0xFC	; 252
+    TIFR1 = _BV(TOV1);
+    79fa:	01 e0       	ldi	r16, 0x01	; 1
+
+
+#if LED_START_FLASHES > 0
+void flash_led(uint8_t count) {
+  do {
+    TCNT1 = -(F_CPU/(1024*16));
+    79fc:	d0 93 85 00 	sts	0x0085, r29
+    7a00:	c0 93 84 00 	sts	0x0084, r28
+    TIFR1 = _BV(TOV1);
+    7a04:	06 bb       	out	0x16, r16	; 22
+    while(!(TIFR1 & _BV(TOV1)));
+    7a06:	b0 9b       	sbis	0x16, 0	; 22
+    7a08:	fe cf       	rjmp	.-4      	; 0x7a06 <flash_led+0x1a>
+#ifdef __AVR_ATmega8__
+    LED_PORT ^= _BV(LED);
+#else
+    LED_PIN |= _BV(LED);
+    7a0a:	1d 9a       	sbi	0x03, 5	; 3
+#endif
+    watchdogReset();
+    7a0c:	ed df       	rcall	.-38     	; 0x79e8 <watchdogReset>
+  } while (--count);
+    7a0e:	11 50       	subi	r17, 0x01	; 1
+    7a10:	a9 f7       	brne	.-22     	; 0x79fc <flash_led+0x10>
+}
+    7a12:	df 91       	pop	r29
+    7a14:	cf 91       	pop	r28
+    7a16:	1f 91       	pop	r17
+    7a18:	0f 91       	pop	r16
+    7a1a:	08 95       	ret
+
+00007a1c <watchdogConfig>:
+  );
+}
+
+
+void watchdogConfig(uint8_t x) {
+  WDTCSR = _BV(WDCE) | _BV(WDE);
+    7a1c:	e0 e6       	ldi	r30, 0x60	; 96
+    7a1e:	f0 e0       	ldi	r31, 0x00	; 0
+    7a20:	98 e1       	ldi	r25, 0x18	; 24
+    7a22:	90 83       	st	Z, r25
+  WDTCSR = x;
+    7a24:	80 83       	st	Z, r24
+}
+    7a26:	08 95       	ret
+
+00007a28 <appStart>:
+
+
+void appStart() {
+
+  watchdogConfig(WATCHDOG_OFF);
+    7a28:	80 e0       	ldi	r24, 0x00	; 0
+    7a2a:	f8 df       	rcall	.-16     	; 0x7a1c <watchdogConfig>
+  __asm__ __volatile__ (
+    7a2c:	ee 27       	eor	r30, r30
+    7a2e:	ff 27       	eor	r31, r31
+    7a30:	09 94       	ijmp
+
+00007a32 <putch>:
+//      ENBL_PIN &= ~_BV(ENBL);
+      
+};
+
+  
+void putch(uint8_t ch) {
+    7a32:	98 2f       	mov	r25, r24
+  
+#ifndef SOFT_UART
+  while (!(UCSR0A & _BV(UDRE0)));
+    7a34:	80 91 c0 00 	lds	r24, 0x00C0
+    7a38:	85 ff       	sbrs	r24, 5
+    7a3a:	fc cf       	rjmp	.-8      	; 0x7a34 <putch+0x2>
+  UDR0 = ch;
+    7a3c:	90 93 c6 00 	sts	0x00C6, r25
+    :
+      "r25"
+  );
+#endif
+
+}
+    7a40:	08 95       	ret
+
+00007a42 <sendFrameByte>:
+	  
+	  
+} // sendFrame
+
+
+void sendFrameByte(uint8_t sendByte) {
+    7a42:	1f 93       	push	r17
+    7a44:	18 2f       	mov	r17, r24
+
+  // "Senden" einschalten
+      //digitalWrite(txEnablePin, HIGH);
+//      ENBL_PIN |= _BV(ENBL);
+      
+      if(sendByte == FRAME_START_LONG || sendByte == FRAME_START_SHORT || sendByte == ESCAPE_CHAR) {
+    7a46:	8c 5f       	subi	r24, 0xFC	; 252
+    7a48:	83 30       	cpi	r24, 0x03	; 3
+    7a4a:	18 f4       	brcc	.+6      	; 0x7a52 <sendFrameByte+0x10>
+         putch(ESCAPE_CHAR);
+    7a4c:	8c ef       	ldi	r24, 0xFC	; 252
+    7a4e:	f1 df       	rcall	.-30     	; 0x7a32 <putch>
+         sendByte &= 0x7F;
+    7a50:	1f 77       	andi	r17, 0x7F	; 127
+      };
+      putch(sendByte);
+    7a52:	81 2f       	mov	r24, r17
+    7a54:	ee df       	rcall	.-36     	; 0x7a32 <putch>
+  // "Senden" ausschalten
+      //digitalWrite(txEnablePin, LOW);
+//      ENBL_PIN &= ~_BV(ENBL);
+      
+};
+    7a56:	1f 91       	pop	r17
+    7a58:	08 95       	ret
+
+00007a5a <getch>:
+      [uartBit] "I" (UART_RX_BIT)
+    :
+      "r25"
+);
+#else
+  while(!(UCSR0A & _BV(RXC0)))
+    7a5a:	80 91 c0 00 	lds	r24, 0x00C0
+    7a5e:	87 ff       	sbrs	r24, 7
+    7a60:	fc cf       	rjmp	.-8      	; 0x7a5a <getch>
+    ;
+  if (!(UCSR0A & _BV(FE0))) {
+    7a62:	80 91 c0 00 	lds	r24, 0x00C0
+    7a66:	84 ff       	sbrs	r24, 4
+       * expects to be talking to the application, and DON'T reset the
+       * watchdog.  This should cause the bootloader to abort and run
+       * the application "soon", if it keeps happening.  (Note that we
+       * don't care that an invalid char is returned...)
+       */
+    watchdogReset();
+    7a68:	bf df       	rcall	.-130    	; 0x79e8 <watchdogReset>
+  }
+  
+  ch = UDR0;
+    7a6a:	80 91 c6 00 	lds	r24, 0x00C6
+  LED_PIN |= _BV(LED);
+#endif
+#endif
+
+  return ch;
+}    // getch
+    7a6e:	08 95       	ret
+
+00007a70 <crc16Shift>:
+
+
+unsigned int crc16Shift(uint8_t newByte , unsigned int oldCrc) {
+    7a70:	90 e0       	ldi	r25, 0x00	; 0
+    crc = (crc << 1);
+    if (newByte & 0x80) {
+      crc = (crc | 1);
+    }
+    if (stat) {
+      crc = (crc ^ CRC16_POLYNOM);
+    7a72:	42 e0       	ldi	r20, 0x02	; 2
+    7a74:	50 e1       	ldi	r21, 0x10	; 16
+  uint8_t i;
+
+  for (i = 0; i < 8; i++) {
+    if (crc & 0x8000) {stat = 1;}
+    else              {stat = 0;}
+    crc = (crc << 1);
+    7a76:	9b 01       	movw	r18, r22
+    7a78:	22 0f       	add	r18, r18
+    7a7a:	33 1f       	adc	r19, r19
+    if (newByte & 0x80) {
+    7a7c:	87 fd       	sbrc	r24, 7
+      crc = (crc | 1);
+    7a7e:	21 60       	ori	r18, 0x01	; 1
+    }
+    if (stat) {
+    7a80:	77 fd       	sbrc	r23, 7
+    7a82:	02 c0       	rjmp	.+4      	; 0x7a88 <crc16Shift+0x18>
+    7a84:	b9 01       	movw	r22, r18
+    7a86:	03 c0       	rjmp	.+6      	; 0x7a8e <crc16Shift+0x1e>
+      crc = (crc ^ CRC16_POLYNOM);
+    7a88:	b9 01       	movw	r22, r18
+    7a8a:	64 27       	eor	r22, r20
+    7a8c:	75 27       	eor	r23, r21
+unsigned int crc16Shift(uint8_t newByte , unsigned int oldCrc) {
+  unsigned int crc = oldCrc;
+  uint8_t stat;
+  uint8_t i;
+
+  for (i = 0; i < 8; i++) {
+    7a8e:	9f 5f       	subi	r25, 0xFF	; 255
+    7a90:	98 30       	cpi	r25, 0x08	; 8
+    7a92:	11 f0       	breq	.+4      	; 0x7a98 <crc16Shift+0x28>
+      crc = (crc | 1);
+    }
+    if (stat) {
+      crc = (crc ^ CRC16_POLYNOM);
+    }
+    newByte = newByte << 1;
+    7a94:	88 0f       	add	r24, r24
+    7a96:	ef cf       	rjmp	.-34     	; 0x7a76 <crc16Shift+0x6>
+  }
+  return crc;
+}  // crc16Shift
+    7a98:	cb 01       	movw	r24, r22
+    7a9a:	08 95       	ret
+
+00007a9c <receive>:
+  return ch;
+  
+}
+
+
+void receive(){
+    7a9c:	1f 93       	push	r17
+  
+// TODO: Kann sich hier zu viel "anstauen", so dass das while vielleicht
+//       nach ein paar Millisekunden unterbrochen werden sollte?
+
+
+    uint8_t rxByte = getch();    // von Serial oder SoftSerial
+    7a9e:	dd df       	rcall	.-70     	; 0x7a5a <getch>
+    7aa0:	18 2f       	mov	r17, r24
+	
+    if(rxByte == ESCAPE_CHAR && !(frameStatus & FRAME_ESCAPE)){
+    7aa2:	8c 3f       	cpi	r24, 0xFC	; 252
+    7aa4:	31 f4       	brne	.+12     	; 0x7ab2 <receive+0x16>
+    7aa6:	80 91 f2 01 	lds	r24, 0x01F2
+    7aaa:	81 fd       	sbrc	r24, 1
+    7aac:	02 c0       	rjmp	.+4      	; 0x7ab2 <receive+0x16>
+// TODO: Wenn frameEscape gesetzt ist, dann sind das zwei Escapes hintereinander
+//       Das ist eigentlich ein Fehler -> Fehlerbehandlung
+     frameStatus |= FRAME_ESCAPE;
+    7aae:	82 60       	ori	r24, 0x02	; 2
+    7ab0:	76 c0       	rjmp	.+236    	; 0x7b9e <receive+0x102>
+    }else{
+      if(rxByte == FRAME_START_LONG || rxByte == FRAME_START_SHORT){  // Startzeichen empfangen
+    7ab2:	81 2f       	mov	r24, r17
+    7ab4:	8d 5f       	subi	r24, 0xFD	; 253
+    7ab6:	20 91 f2 01 	lds	r18, 0x01F2
+    7aba:	82 30       	cpi	r24, 0x02	; 2
+    7abc:	60 f5       	brcc	.+88     	; 0x7b16 <receive+0x7a>
+         rxStartByte = rxByte;
+    7abe:	10 93 10 01 	sts	0x0110, r17
+         frameStatus |= FRAME_START;
+         frameStatus &= ~FRAME_ESCAPE;
+         frameStatus &= ~FRAME_CRCOK;
+         frameStatus &= ~FRAME_DISCOVERY;
+    7ac2:	21 60       	ori	r18, 0x01	; 1
+    7ac4:	29 7d       	andi	r18, 0xD9	; 217
+    7ac6:	20 93 f2 01 	sts	0x01F2, r18
+         framePointer = 0;
+    7aca:	10 92 03 01 	sts	0x0103, r1
+         addressPointer = 0;
+    7ace:	10 92 02 01 	sts	0x0102, r1
+         rxSenderAddress = 0;
+    7ad2:	10 92 07 01 	sts	0x0107, r1
+    7ad6:	10 92 08 01 	sts	0x0108, r1
+    7ada:	10 92 09 01 	sts	0x0109, r1
+    7ade:	10 92 0a 01 	sts	0x010A, r1
+         rxTargetAddress = 0;
+    7ae2:	10 92 0c 01 	sts	0x010C, r1
+    7ae6:	10 92 0d 01 	sts	0x010D, r1
+    7aea:	10 92 0e 01 	sts	0x010E, r1
+    7aee:	10 92 0f 01 	sts	0x010F, r1
+         crc16checksum = crc16Shift(rxByte , 0xFFFF);
+    7af2:	81 2f       	mov	r24, r17
+    7af4:	6f ef       	ldi	r22, 0xFF	; 255
+    7af6:	7f ef       	ldi	r23, 0xFF	; 255
+    7af8:	bb df       	rcall	.-138    	; 0x7a70 <crc16Shift>
+    7afa:	90 93 01 01 	sts	0x0101, r25
+    7afe:	80 93 00 01 	sts	0x0100, r24
+         if(rxByte == FRAME_START_LONG){    // Startzeichen 0xFD
+    7b02:	1d 3f       	cpi	r17, 0xFD	; 253
+    7b04:	09 f0       	breq	.+2      	; 0x7b08 <receive+0x6c>
+    7b06:	c9 c0       	rjmp	.+402    	; 0x7c9a <receive+0x1fe>
+            addressLength = 4;
+    7b08:	84 e0       	ldi	r24, 0x04	; 4
+    7b0a:	80 93 05 01 	sts	0x0105, r24
+            addressLengthLong = 9;
+    7b0e:	89 e0       	ldi	r24, 0x09	; 9
+    7b10:	80 93 04 01 	sts	0x0104, r24
+    7b14:	c2 c0       	rjmp	.+388    	; 0x7c9a <receive+0x1fe>
+            addressLength = 1;
+            addressLengthLong = 2;
+         }
+#endif
+
+       }else if(frameStatus & FRAME_START) {  // Startbyte wurde zuvor gesetzt und Frame wird nicht ignoriert
+    7b16:	20 ff       	sbrs	r18, 0
+    7b18:	c0 c0       	rjmp	.+384    	; 0x7c9a <receive+0x1fe>
+         if(frameStatus & FRAME_ESCAPE) {
+    7b1a:	21 ff       	sbrs	r18, 1
+    7b1c:	04 c0       	rjmp	.+8      	; 0x7b26 <receive+0x8a>
+            rxByte |= 0x80;
+    7b1e:	10 68       	ori	r17, 0x80	; 128
+            frameStatus &= ~FRAME_ESCAPE;
+    7b20:	2d 7f       	andi	r18, 0xFD	; 253
+    7b22:	20 93 f2 01 	sts	0x01F2, r18
+         };
+         crc16checksum = crc16Shift(rxByte , crc16checksum);
+    7b26:	60 91 00 01 	lds	r22, 0x0100
+    7b2a:	70 91 01 01 	lds	r23, 0x0101
+    7b2e:	81 2f       	mov	r24, r17
+    7b30:	9f df       	rcall	.-194    	; 0x7a70 <crc16Shift>
+    7b32:	ac 01       	movw	r20, r24
+    7b34:	90 93 01 01 	sts	0x0101, r25
+    7b38:	80 93 00 01 	sts	0x0100, r24
+         if(addressPointer < addressLength){  // Adressbyte Zieladresse empfangen
+    7b3c:	60 91 02 01 	lds	r22, 0x0102
+    7b40:	80 91 05 01 	lds	r24, 0x0105
+    7b44:	68 17       	cp	r22, r24
+    7b46:	e8 f4       	brcc	.+58     	; 0x7b82 <receive+0xe6>
+            rxTargetAddress <<= 8;
+            rxTargetAddress |= rxByte;
+    7b48:	21 2f       	mov	r18, r17
+    7b4a:	30 e0       	ldi	r19, 0x00	; 0
+    7b4c:	40 e0       	ldi	r20, 0x00	; 0
+    7b4e:	50 e0       	ldi	r21, 0x00	; 0
+    7b50:	80 91 0c 01 	lds	r24, 0x010C
+    7b54:	90 91 0d 01 	lds	r25, 0x010D
+    7b58:	a0 91 0e 01 	lds	r26, 0x010E
+    7b5c:	b0 91 0f 01 	lds	r27, 0x010F
+    7b60:	ba 2f       	mov	r27, r26
+    7b62:	a9 2f       	mov	r26, r25
+    7b64:	98 2f       	mov	r25, r24
+    7b66:	88 27       	eor	r24, r24
+    7b68:	28 2b       	or	r18, r24
+    7b6a:	39 2b       	or	r19, r25
+    7b6c:	4a 2b       	or	r20, r26
+    7b6e:	5b 2b       	or	r21, r27
+    7b70:	20 93 0c 01 	sts	0x010C, r18
+    7b74:	30 93 0d 01 	sts	0x010D, r19
+    7b78:	40 93 0e 01 	sts	0x010E, r20
+    7b7c:	50 93 0f 01 	sts	0x010F, r21
+    7b80:	39 c0       	rjmp	.+114    	; 0x7bf4 <receive+0x158>
+            addressPointer++;
+         }else if(addressPointer == addressLength){   // Controlbyte empfangen
+    7b82:	68 17       	cp	r22, r24
+    7b84:	79 f4       	brne	.+30     	; 0x7ba4 <receive+0x108>
+            addressPointer++;
+    7b86:	6f 5f       	subi	r22, 0xFF	; 255
+    7b88:	60 93 02 01 	sts	0x0102, r22
+            rxFrameControlByte = rxByte;
+    7b8c:	10 93 0b 01 	sts	0x010B, r17
+            if ((rxFrameControlByte & 0b00000011) == 0b00000011){
+    7b90:	13 70       	andi	r17, 0x03	; 3
+    7b92:	13 30       	cpi	r17, 0x03	; 3
+    7b94:	09 f0       	breq	.+2      	; 0x7b98 <receive+0xfc>
+    7b96:	81 c0       	rjmp	.+258    	; 0x7c9a <receive+0x1fe>
+              frameStatus |= FRAME_DISCOVERY;
+    7b98:	80 91 f2 01 	lds	r24, 0x01F2
+    7b9c:	84 60       	ori	r24, 0x04	; 4
+    7b9e:	80 93 f2 01 	sts	0x01F2, r24
+    7ba2:	7b c0       	rjmp	.+246    	; 0x7c9a <receive+0x1fe>
+            }
+         }else if( (rxFrameControlByte & 0b00001000) && (addressPointer < addressLengthLong) && !(frameStatus & FRAME_DISCOVERY)) {
+    7ba4:	30 91 0b 01 	lds	r19, 0x010B
+    7ba8:	33 ff       	sbrs	r19, 3
+    7baa:	28 c0       	rjmp	.+80     	; 0x7bfc <receive+0x160>
+    7bac:	80 91 04 01 	lds	r24, 0x0104
+    7bb0:	68 17       	cp	r22, r24
+    7bb2:	20 f5       	brcc	.+72     	; 0x7bfc <receive+0x160>
+    7bb4:	80 91 f2 01 	lds	r24, 0x01F2
+    7bb8:	82 fd       	sbrc	r24, 2
+    7bba:	20 c0       	rjmp	.+64     	; 0x7bfc <receive+0x160>
+        	// Adressbyte Sender empfangen wenn CTRL_HAS_SENDER und FRAME_START_LONG
+                // und kein Discovery angefordert ist (ControlByte = 0bXXXXXX11
+        	rxSenderAddress <<= 8;
+        	rxSenderAddress |= rxByte;
+    7bbc:	21 2f       	mov	r18, r17
+    7bbe:	30 e0       	ldi	r19, 0x00	; 0
+    7bc0:	40 e0       	ldi	r20, 0x00	; 0
+    7bc2:	50 e0       	ldi	r21, 0x00	; 0
+    7bc4:	80 91 07 01 	lds	r24, 0x0107
+    7bc8:	90 91 08 01 	lds	r25, 0x0108
+    7bcc:	a0 91 09 01 	lds	r26, 0x0109
+    7bd0:	b0 91 0a 01 	lds	r27, 0x010A
+    7bd4:	ba 2f       	mov	r27, r26
+    7bd6:	a9 2f       	mov	r26, r25
+    7bd8:	98 2f       	mov	r25, r24
+    7bda:	88 27       	eor	r24, r24
+    7bdc:	28 2b       	or	r18, r24
+    7bde:	39 2b       	or	r19, r25
+    7be0:	4a 2b       	or	r20, r26
+    7be2:	5b 2b       	or	r21, r27
+    7be4:	20 93 07 01 	sts	0x0107, r18
+    7be8:	30 93 08 01 	sts	0x0108, r19
+    7bec:	40 93 09 01 	sts	0x0109, r20
+    7bf0:	50 93 0a 01 	sts	0x010A, r21
+            addressPointer++;
+    7bf4:	6f 5f       	subi	r22, 0xFF	; 255
+    7bf6:	60 93 02 01 	sts	0x0102, r22
+    7bfa:	4f c0       	rjmp	.+158    	; 0x7c9a <receive+0x1fe>
+         }else if(addressPointer != 0xFF) { // Datenl�nge empfangen
+    7bfc:	6f 3f       	cpi	r22, 0xFF	; 255
+    7bfe:	31 f0       	breq	.+12     	; 0x7c0c <receive+0x170>
+            addressPointer = 0xFF;
+    7c00:	8f ef       	ldi	r24, 0xFF	; 255
+    7c02:	80 93 02 01 	sts	0x0102, r24
+            rxFrameDataLength = rxByte;
+    7c06:	10 93 06 01 	sts	0x0106, r17
+    7c0a:	47 c0       	rjmp	.+142    	; 0x7c9a <receive+0x1fe>
+         }else{                   // Daten empfangen
+            frameData[framePointer] = rxByte;   // Daten in Puffer speichern
+    7c0c:	20 91 03 01 	lds	r18, 0x0103
+    7c10:	e2 2f       	mov	r30, r18
+    7c12:	f0 e0       	ldi	r31, 0x00	; 0
+    7c14:	ef 5e       	subi	r30, 0xEF	; 239
+    7c16:	fe 4f       	sbci	r31, 0xFE	; 254
+    7c18:	10 83       	st	Z, r17
+//            rxFrameData[framePointer] = rxByte;   // Daten in Puffer speichern -------------------------------------------
+            framePointer++;
+    7c1a:	92 2f       	mov	r25, r18
+    7c1c:	9f 5f       	subi	r25, 0xFF	; 255
+    7c1e:	90 93 03 01 	sts	0x0103, r25
+            if(framePointer == rxFrameDataLength) {  // Daten komplett
+    7c22:	80 91 06 01 	lds	r24, 0x0106
+    7c26:	98 17       	cp	r25, r24
+    7c28:	c1 f5       	brne	.+112    	; 0x7c9a <receive+0x1fe>
+// TODO: Fehlt da die Checksumme, oder ist rxFrameDataLength sowieso inklusive CRC?
+//               crc16Register = crc16Shift(0 , crc16Register)
+//               crc16Register = crc16Shift(0 , crc16Register)
+               if(crc16checksum == 0) {    //
+    7c2a:	45 2b       	or	r20, r21
+    7c2c:	b1 f5       	brne	.+108    	; 0x7c9a <receive+0x1fe>
+            	  frameStatus &= ~FRAME_START;
+                  frameStatus |= FRAME_CRCOK;
+    7c2e:	80 91 f2 01 	lds	r24, 0x01F2
+    7c32:	8e 7f       	andi	r24, 0xFE	; 254
+    7c34:	80 62       	ori	r24, 0x20	; 32
+    7c36:	80 93 f2 01 	sts	0x01F2, r24
+                  // Framedaten f�r die sp�tere Verarbeitung speichern
+                  // TODO: Braucht man das wirklich?
+                  //       Moeglicherweise braucht man das nur, wenn mit Interrupts gearbeitet wird
+                  startByte = rxStartByte;
+    7c3a:	80 91 10 01 	lds	r24, 0x0110
+    7c3e:	80 93 de 01 	sts	0x01DE, r24
+                  targetAddress = rxTargetAddress;
+    7c42:	80 91 0c 01 	lds	r24, 0x010C
+    7c46:	90 91 0d 01 	lds	r25, 0x010D
+    7c4a:	a0 91 0e 01 	lds	r26, 0x010E
+    7c4e:	b0 91 0f 01 	lds	r27, 0x010F
+    7c52:	80 93 ee 01 	sts	0x01EE, r24
+    7c56:	90 93 ef 01 	sts	0x01EF, r25
+    7c5a:	a0 93 f0 01 	sts	0x01F0, r26
+    7c5e:	b0 93 f1 01 	sts	0x01F1, r27
+                  frameControlByte = rxFrameControlByte;
+    7c62:	30 93 f3 01 	sts	0x01F3, r19
+                  senderAddress = rxSenderAddress;
+    7c66:	80 91 07 01 	lds	r24, 0x0107
+    7c6a:	90 91 08 01 	lds	r25, 0x0108
+    7c6e:	a0 91 09 01 	lds	r26, 0x0109
+    7c72:	b0 91 0a 01 	lds	r27, 0x010A
+    7c76:	80 93 df 01 	sts	0x01DF, r24
+    7c7a:	90 93 e0 01 	sts	0x01E0, r25
+    7c7e:	a0 93 e1 01 	sts	0x01E1, r26
+    7c82:	b0 93 e2 01 	sts	0x01E2, r27
+
+                  frameDataLength = rxFrameDataLength - 2;
+    7c86:	21 50       	subi	r18, 0x01	; 1
+    7c88:	20 93 da 01 	sts	0x01DA, r18
+//                  for(i=0; i< frameDataLength; i++) {
+//				    frameData[i] = rxFrameData[i];
+//				  }
+				  //memcpy(frameData, rxFrameData, frameDataLength);
+                  framePointer = 0;
+    7c8c:	10 92 03 01 	sts	0x0103, r1
+                  addressPointer = 0;
+    7c90:	10 92 02 01 	sts	0x0102, r1
+                  // es liegt eine neue Nachricht vor
+                  frameComplete = 1;
+    7c94:	81 e0       	ldi	r24, 0x01	; 1
+    7c96:	80 93 d9 01 	sts	0x01D9, r24
+         }
+      }
+    }
+
+  
+} // receive
+    7c9a:	1f 91       	pop	r17
+    7c9c:	08 95       	ret
+
+00007c9e <rxch>:
+
+uint8_t rxch(void) {
+  uint8_t ch;
+
+
+  if (rxDataIndex >= frameDataLength) {    // Keine Daten mehr im Puffer - neue Botschaft muss empfangen werden
+    7c9e:	90 91 dc 01 	lds	r25, 0x01DC
+    7ca2:	80 91 da 01 	lds	r24, 0x01DA
+    7ca6:	98 17       	cp	r25, r24
+    7ca8:	b8 f1       	brcs	.+110    	; 0x7d18 <rxch+0x7a>
+    uint8_t dataReceived = 0;
+    while(!dataReceived) {
+      receive();
+    7caa:	f8 de       	rcall	.-528    	; 0x7a9c <receive>
+      if ((frameComplete)) {
+    7cac:	80 91 d9 01 	lds	r24, 0x01D9
+    7cb0:	88 23       	and	r24, r24
+    7cb2:	d9 f3       	breq	.-10     	; 0x7caa <rxch+0xc>
+		frameComplete = 0;
+    7cb4:	10 92 d9 01 	sts	0x01D9, r1
+		if ((targetAddress == clientID) && (senderAddress == programmerID)) {
+    7cb8:	20 91 ee 01 	lds	r18, 0x01EE
+    7cbc:	30 91 ef 01 	lds	r19, 0x01EF
+    7cc0:	40 91 f0 01 	lds	r20, 0x01F0
+    7cc4:	50 91 f1 01 	lds	r21, 0x01F1
+    7cc8:	80 91 e9 01 	lds	r24, 0x01E9
+    7ccc:	90 91 ea 01 	lds	r25, 0x01EA
+    7cd0:	a0 91 eb 01 	lds	r26, 0x01EB
+    7cd4:	b0 91 ec 01 	lds	r27, 0x01EC
+    7cd8:	28 17       	cp	r18, r24
+    7cda:	39 07       	cpc	r19, r25
+    7cdc:	4a 07       	cpc	r20, r26
+    7cde:	5b 07       	cpc	r21, r27
+    7ce0:	21 f7       	brne	.-56     	; 0x7caa <rxch+0xc>
+    7ce2:	20 91 df 01 	lds	r18, 0x01DF
+    7ce6:	30 91 e0 01 	lds	r19, 0x01E0
+    7cea:	40 91 e1 01 	lds	r20, 0x01E1
+    7cee:	50 91 e2 01 	lds	r21, 0x01E2
+    7cf2:	80 91 e4 01 	lds	r24, 0x01E4
+    7cf6:	90 91 e5 01 	lds	r25, 0x01E5
+    7cfa:	a0 91 e6 01 	lds	r26, 0x01E6
+    7cfe:	b0 91 e7 01 	lds	r27, 0x01E7
+    7d02:	28 17       	cp	r18, r24
+    7d04:	39 07       	cpc	r19, r25
+    7d06:	4a 07       	cpc	r20, r26
+    7d08:	5b 07       	cpc	r21, r27
+    7d0a:	79 f6       	brne	.-98     	; 0x7caa <rxch+0xc>
+			rxDataIndex = 0;
+			ch = frameData[rxDataIndex];
+    7d0c:	e0 91 11 01 	lds	r30, 0x0111
+			dataReceived = 1;
+			rxDataIndex++;
+    7d10:	81 e0       	ldi	r24, 0x01	; 1
+    7d12:	80 93 dc 01 	sts	0x01DC, r24
+    7d16:	08 c0       	rjmp	.+16     	; 0x7d28 <rxch+0x8a>
+	  }	
+    }   
+    dataReceived = 0;
+  }
+  else {                         // Daten sind noch im Puffer
+    ch = frameData[rxDataIndex];
+    7d18:	e9 2f       	mov	r30, r25
+    7d1a:	f0 e0       	ldi	r31, 0x00	; 0
+    7d1c:	ef 5e       	subi	r30, 0xEF	; 239
+    7d1e:	fe 4f       	sbci	r31, 0xFE	; 254
+    7d20:	e0 81       	ld	r30, Z
+    rxDataIndex++;
+    7d22:	9f 5f       	subi	r25, 0xFF	; 255
+    7d24:	90 93 dc 01 	sts	0x01DC, r25
+  }
+
+  return ch;
+  
+}
+    7d28:	8e 2f       	mov	r24, r30
+    7d2a:	08 95       	ret
+
+00007d2c <sendFrame>:
+    txDataIndex = 0;
+  }
+}
+
+
+void sendFrame() {
+    7d2c:	9f 92       	push	r9
+    7d2e:	af 92       	push	r10
+    7d30:	bf 92       	push	r11
+    7d32:	cf 92       	push	r12
+    7d34:	df 92       	push	r13
+    7d36:	ef 92       	push	r14
+    7d38:	ff 92       	push	r15
+    7d3a:	0f 93       	push	r16
+    7d3c:	1f 93       	push	r17
+    7d3e:	cf 93       	push	r28
+    7d40:	df 93       	push	r29
+
+	  ENBL_PORT |= _BV(ENBL);
+    7d42:	5a 9a       	sbi	0x0b, 2	; 11
+      txFrameControlByte = 0x78;
+
+//    if(txTargetAddress != 0xFFFFFFFF){
+        uint8_t txSeqNum = (frameControlByte >> 1) & 0x03;
+        txFrameControlByte &= 0x9F;
+        txFrameControlByte |= (txSeqNum << 5);
+    7d44:	80 91 f3 01 	lds	r24, 0x01F3
+    7d48:	82 95       	swap	r24
+    7d4a:	80 76       	andi	r24, 0x60	; 96
+    7d4c:	88 61       	ori	r24, 0x18	; 24
+    7d4e:	80 93 db 01 	sts	0x01DB, r24
+//    };
+
+
+      putch(FRAME_START_LONG);  // send startbyte
+    7d52:	8d ef       	ldi	r24, 0xFD	; 253
+    7d54:	6e de       	rcall	.-804    	; 0x7a32 <putch>
+
+      crc16checksum = crc16Shift(FRAME_START_LONG , crc16checksum);
+    7d56:	8d ef       	ldi	r24, 0xFD	; 253
+    7d58:	6f ef       	ldi	r22, 0xFF	; 255
+    7d5a:	7f ef       	ldi	r23, 0xFF	; 255
+    7d5c:	89 de       	rcall	.-750    	; 0x7a70 <crc16Shift>
+    7d5e:	ec 01       	movw	r28, r24
+
+
+      uint8_t i;
+      uint32_t hmwAddress;
+	  hmwAddress = programmerID;
+    7d60:	a0 90 e4 01 	lds	r10, 0x01E4
+    7d64:	b0 90 e5 01 	lds	r11, 0x01E5
+    7d68:	c0 90 e6 01 	lds	r12, 0x01E6
+    7d6c:	d0 90 e7 01 	lds	r13, 0x01E7
+    7d70:	99 24       	eor	r9, r9
+	  
+      for( i = 0; i < 4; i++){      // send target address
+    	 tmpByte = hmwAddress >> 24;
+    7d72:	ed 2c       	mov	r14, r13
+    7d74:	ff 24       	eor	r15, r15
+    7d76:	00 27       	eor	r16, r16
+    7d78:	11 27       	eor	r17, r17
+         sendFrameByte( tmpByte );
+    7d7a:	8e 2d       	mov	r24, r14
+    7d7c:	62 de       	rcall	.-828    	; 0x7a42 <sendFrameByte>
+         crc16checksum = crc16Shift(tmpByte, crc16checksum);
+    7d7e:	8e 2d       	mov	r24, r14
+    7d80:	be 01       	movw	r22, r28
+    7d82:	76 de       	rcall	.-788    	; 0x7a70 <crc16Shift>
+    7d84:	ec 01       	movw	r28, r24
+         hmwAddress = hmwAddress << 8;
+    7d86:	dc 2c       	mov	r13, r12
+    7d88:	cb 2c       	mov	r12, r11
+    7d8a:	ba 2c       	mov	r11, r10
+    7d8c:	aa 24       	eor	r10, r10
+
+      uint8_t i;
+      uint32_t hmwAddress;
+	  hmwAddress = programmerID;
+	  
+      for( i = 0; i < 4; i++){      // send target address
+    7d8e:	93 94       	inc	r9
+    7d90:	84 e0       	ldi	r24, 0x04	; 4
+    7d92:	98 16       	cp	r9, r24
+    7d94:	71 f7       	brne	.-36     	; 0x7d72 <sendFrame+0x46>
+         sendFrameByte( tmpByte );
+         crc16checksum = crc16Shift(tmpByte, crc16checksum);
+         hmwAddress = hmwAddress << 8;
+      };
+
+      sendFrameByte(txFrameControlByte);                                      // send controll byte
+    7d96:	80 91 db 01 	lds	r24, 0x01DB
+    7d9a:	53 de       	rcall	.-858    	; 0x7a42 <sendFrameByte>
+      crc16checksum = crc16Shift(txFrameControlByte , crc16checksum);
+    7d9c:	80 91 db 01 	lds	r24, 0x01DB
+    7da0:	be 01       	movw	r22, r28
+    7da2:	66 de       	rcall	.-820    	; 0x7a70 <crc16Shift>
+    7da4:	ec 01       	movw	r28, r24
+
+      if(txFrameControlByte & 0b00001000){                                      // check if message has sender
+    7da6:	80 91 db 01 	lds	r24, 0x01DB
+    7daa:	83 ff       	sbrs	r24, 3
+    7dac:	1b c0       	rjmp	.+54     	; 0x7de4 <sendFrame+0xb8>
+    	  hmwAddress = clientID;
+    7dae:	a0 90 e9 01 	lds	r10, 0x01E9
+    7db2:	b0 90 ea 01 	lds	r11, 0x01EA
+    7db6:	c0 90 eb 01 	lds	r12, 0x01EB
+    7dba:	d0 90 ec 01 	lds	r13, 0x01EC
+    7dbe:	99 24       	eor	r9, r9
+    	  for( i = 0; i < 4; i++){                                           // send sender address
+    	    	 tmpByte = hmwAddress >> 24;
+    7dc0:	ed 2c       	mov	r14, r13
+    7dc2:	ff 24       	eor	r15, r15
+    7dc4:	00 27       	eor	r16, r16
+    7dc6:	11 27       	eor	r17, r17
+    	         sendFrameByte( tmpByte );
+    7dc8:	8e 2d       	mov	r24, r14
+    7dca:	3b de       	rcall	.-906    	; 0x7a42 <sendFrameByte>
+    	         crc16checksum = crc16Shift(tmpByte, crc16checksum);
+    7dcc:	8e 2d       	mov	r24, r14
+    7dce:	be 01       	movw	r22, r28
+    7dd0:	4f de       	rcall	.-866    	; 0x7a70 <crc16Shift>
+    7dd2:	ec 01       	movw	r28, r24
+    	         hmwAddress = hmwAddress << 8;
+    7dd4:	dc 2c       	mov	r13, r12
+    7dd6:	cb 2c       	mov	r12, r11
+    7dd8:	ba 2c       	mov	r11, r10
+    7dda:	aa 24       	eor	r10, r10
+      sendFrameByte(txFrameControlByte);                                      // send controll byte
+      crc16checksum = crc16Shift(txFrameControlByte , crc16checksum);
+
+      if(txFrameControlByte & 0b00001000){                                      // check if message has sender
+    	  hmwAddress = clientID;
+    	  for( i = 0; i < 4; i++){                                           // send sender address
+    7ddc:	93 94       	inc	r9
+    7dde:	84 e0       	ldi	r24, 0x04	; 4
+    7de0:	98 16       	cp	r9, r24
+    7de2:	71 f7       	brne	.-36     	; 0x7dc0 <sendFrame+0x94>
+    	         sendFrameByte( tmpByte );
+    	         crc16checksum = crc16Shift(tmpByte, crc16checksum);
+    	         hmwAddress = hmwAddress << 8;
+    	  }
+      };
+      tmpByte = txFrameDataLength + 2;                              // send data length
+    7de4:	10 91 ed 01 	lds	r17, 0x01ED
+    7de8:	1e 5f       	subi	r17, 0xFE	; 254
+      sendFrameByte(tmpByte);
+    7dea:	81 2f       	mov	r24, r17
+    7dec:	2a de       	rcall	.-940    	; 0x7a42 <sendFrameByte>
+      crc16checksum = crc16Shift(tmpByte , crc16checksum);
+    7dee:	81 2f       	mov	r24, r17
+    7df0:	be 01       	movw	r22, r28
+    7df2:	3e de       	rcall	.-900    	; 0x7a70 <crc16Shift>
+    7df4:	ec 01       	movw	r28, r24
+    7df6:	00 e0       	ldi	r16, 0x00	; 0
+    7df8:	0c c0       	rjmp	.+24     	; 0x7e12 <sendFrame+0xe6>
+
+    	for(i = 0; i < txFrameDataLength; i++){            // send data, falls was zu senden
+            sendFrameByte(frameData[i]);                  // ----------------------------------------------------------
+    7dfa:	e0 2f       	mov	r30, r16
+    7dfc:	f0 e0       	ldi	r31, 0x00	; 0
+    7dfe:	ef 5e       	subi	r30, 0xEF	; 239
+    7e00:	fe 4f       	sbci	r31, 0xFE	; 254
+    7e02:	10 81       	ld	r17, Z
+    7e04:	81 2f       	mov	r24, r17
+    7e06:	1d de       	rcall	.-966    	; 0x7a42 <sendFrameByte>
+            crc16checksum = crc16Shift(frameData[i], crc16checksum);  // --------------------------------------------
+    7e08:	81 2f       	mov	r24, r17
+    7e0a:	be 01       	movw	r22, r28
+    7e0c:	31 de       	rcall	.-926    	; 0x7a70 <crc16Shift>
+    7e0e:	ec 01       	movw	r28, r24
+      };
+      tmpByte = txFrameDataLength + 2;                              // send data length
+      sendFrameByte(tmpByte);
+      crc16checksum = crc16Shift(tmpByte , crc16checksum);
+
+    	for(i = 0; i < txFrameDataLength; i++){            // send data, falls was zu senden
+    7e10:	0f 5f       	subi	r16, 0xFF	; 255
+    7e12:	80 91 ed 01 	lds	r24, 0x01ED
+    7e16:	08 17       	cp	r16, r24
+    7e18:	80 f3       	brcs	.-32     	; 0x7dfa <sendFrame+0xce>
+            sendFrameByte(frameData[i]);                  // ----------------------------------------------------------
+            crc16checksum = crc16Shift(frameData[i], crc16checksum);  // --------------------------------------------
+    	}
+      crc16checksum = crc16Shift(0 , crc16checksum);  // TODO: ???
+    7e1a:	80 e0       	ldi	r24, 0x00	; 0
+    7e1c:	be 01       	movw	r22, r28
+    7e1e:	28 de       	rcall	.-944    	; 0x7a70 <crc16Shift>
+    7e20:	bc 01       	movw	r22, r24
+      crc16checksum = crc16Shift(0 , crc16checksum);
+    7e22:	80 e0       	ldi	r24, 0x00	; 0
+    7e24:	25 de       	rcall	.-950    	; 0x7a70 <crc16Shift>
+    7e26:	8c 01       	movw	r16, r24
+
+      // CRC schicken
+      sendFrameByte(crc16checksum / 0x100);   // TODO: High byte first? Ist das auch bei Adressen so?
+    7e28:	81 2f       	mov	r24, r17
+    7e2a:	99 27       	eor	r25, r25
+    7e2c:	0a de       	rcall	.-1004   	; 0x7a42 <sendFrameByte>
+      sendFrameByte(crc16checksum & 0xFF);
+    7e2e:	80 2f       	mov	r24, r16
+    7e30:	08 de       	rcall	.-1008   	; 0x7a42 <sendFrameByte>
+
+      frameStatus |= FRAME_SENTACKWAIT;
+      frameStatus &= ~FRAME_ACKOK;
+    7e32:	80 91 f2 01 	lds	r24, 0x01F2
+    7e36:	88 60       	ori	r24, 0x08	; 8
+    7e38:	8f 7e       	andi	r24, 0xEF	; 239
+    7e3a:	80 93 f2 01 	sts	0x01F2, r24
+    milliseconds can be achieved.
+ */
+void
+_delay_loop_2(uint16_t __count)
+{
+	__asm__ volatile (
+    7e3e:	80 e4       	ldi	r24, 0x40	; 64
+    7e40:	9f e1       	ldi	r25, 0x1F	; 31
+    7e42:	01 97       	sbiw	r24, 0x01	; 1
+    7e44:	f1 f7       	brne	.-4      	; 0x7e42 <sendFrame+0x116>
+
+	  
+	  _delay_ms(2);
+	  //while (!(UCSR0A & _BV(TXC0)));
+	  ENBL_PORT &= ~_BV(ENBL);
+    7e46:	5a 98       	cbi	0x0b, 2	; 11
+      //digitalWrite(txEnablePin, LOW);
+	  
+	  
+} // sendFrame
+    7e48:	df 91       	pop	r29
+    7e4a:	cf 91       	pop	r28
+    7e4c:	1f 91       	pop	r17
+    7e4e:	0f 91       	pop	r16
+    7e50:	ff 90       	pop	r15
+    7e52:	ef 90       	pop	r14
+    7e54:	df 90       	pop	r13
+    7e56:	cf 90       	pop	r12
+    7e58:	bf 90       	pop	r11
+    7e5a:	af 90       	pop	r10
+    7e5c:	9f 90       	pop	r9
+    7e5e:	08 95       	ret
+
+00007e60 <txch>:
+
+
+
+void txch(uint8_t ch) {
+
+  frameData[txDataIndex] = ch;
+    7e60:	90 91 dd 01 	lds	r25, 0x01DD
+    7e64:	e9 2f       	mov	r30, r25
+    7e66:	f0 e0       	ldi	r31, 0x00	; 0
+    7e68:	ef 5e       	subi	r30, 0xEF	; 239
+    7e6a:	fe 4f       	sbci	r31, 0xFE	; 254
+    7e6c:	80 83       	st	Z, r24
+  txDataIndex++;
+    7e6e:	9f 5f       	subi	r25, 0xFF	; 255
+    7e70:	90 93 dd 01 	sts	0x01DD, r25
+
+
+  if (txDataIndex == responseLength) {
+    7e74:	80 91 e3 01 	lds	r24, 0x01E3
+    7e78:	98 17       	cp	r25, r24
+    7e7a:	29 f4       	brne	.+10     	; 0x7e86 <txch+0x26>
+    txFrameDataLength = txDataIndex;
+    7e7c:	90 93 ed 01 	sts	0x01ED, r25
+    sendFrame();
+    7e80:	55 df       	rcall	.-342    	; 0x7d2c <sendFrame>
+    txDataIndex = 0;
+    7e82:	10 92 dd 01 	sts	0x01DD, r1
+    7e86:	08 95       	ret
+
+00007e88 <verifySpace>:
+}
+#endif
+
+
+void verifySpace() {
+  if (rxch() != CRC_EOP) {
+    7e88:	0a df       	rcall	.-492    	; 0x7c9e <rxch>
+    7e8a:	80 32       	cpi	r24, 0x20	; 32
+    7e8c:	19 f0       	breq	.+6      	; 0x7e94 <verifySpace+0xc>
+    watchdogConfig(WATCHDOG_16MS);    // shorten WD timeout
+    7e8e:	88 e0       	ldi	r24, 0x08	; 8
+    7e90:	c5 dd       	rcall	.-1142   	; 0x7a1c <watchdogConfig>
+    7e92:	ff cf       	rjmp	.-2      	; 0x7e92 <verifySpace+0xa>
+    while (1)			      // and busy-loop so that WD causes
+      ;				      //  a reset and app start.
+  }
+  txch(STK_INSYNC);
+    7e94:	84 e1       	ldi	r24, 0x14	; 20
+}
+    7e96:	e4 cf       	rjmp	.-56     	; 0x7e60 <txch>
+
+00007e98 <rxNch>:
+}
+
+
+
+
+void rxNch(uint8_t count) {
+    7e98:	1f 93       	push	r17
+    7e9a:	18 2f       	mov	r17, r24
+  do rxch(); while (--count);
+    7e9c:	00 df       	rcall	.-512    	; 0x7c9e <rxch>
+    7e9e:	11 50       	subi	r17, 0x01	; 1
+    7ea0:	e9 f7       	brne	.-6      	; 0x7e9c <rxNch+0x4>
+  verifySpace();
+    7ea2:	f2 df       	rcall	.-28     	; 0x7e88 <verifySpace>
+}
+    7ea4:	1f 91       	pop	r17
+    7ea6:	08 95       	ret
