@@ -33,20 +33,31 @@
 // Die "DEBUG_UNO"-Version ist fuer einen normalen Arduino Uno (oder so)
 // gedacht. Dadurch wird RS485 ueber SoftwareSerial angesteuert
 // und der Hardware-Serial-Port wird fuer Debug-Ausgaben benutzt
-// #define DEBUG_UNO 1
+// Dadurch kann man die normale USB-Verbindung zum Programmieren und
+// debuggen benutzen
+
+#define DEBUG_NONE 0   // Kein Debug-Ausgang, RS485 auf Hardware-Serial
+#define DEBUG_UNO 1    // Hardware-Serial ist Debug-Ausgang, RS485 per Soft auf pins 5/6
+#define DEBUG_UNIV 2   // Hardware-Serial ist RS485, Debug per Soft auf pins 5/6
+
+#define DEBUG_VERSION DEBUG_UNIV
 
 // Do not remove the include below
-#include "HMWOneWire.h"
+#include "HBW-1W-T10.h"
 
-#include <EEPROM.h>
-
-#ifdef DEBUG_UNO
+#if DEBUG_VERSION == DEBUG_UNO || DEBUG_VERSION == DEBUG_UNIV
 // TODO: Eigene SoftwareSerial
 #include <SoftwareSerial.h>
 #endif
 
+// debug-Funktion
+#include "HMWDebug.h"
+
 // OneWire
 #include <OneWire.h>
+
+// EEPROM
+#include <EEPROM.h>
 
 // HM Wired Protokoll
 #include "HMWRS485.h"
@@ -54,22 +65,26 @@
 #include "HMWModule.h"
 
 // Ein paar defines...
-#ifdef DEBUG_UNO
+#if DEBUG_VERSION == DEBUG_UNO
   #define RS485_RXD 5
   #define RS485_TXD 6
   #define LED 13        // Signal-LED
+#elif DEBUG_VERSION == DEBUG_UNIV
+  #define DEBUG_RXD 5
+  #define DEBUG_TXD 6
+  #define LED 4
 #else
   #define LED 4         // Signal-LED
 #endif
+
 #define BUTTON 8            // Das Bedienelement
 #define RS485_TXEN 2        // Transmit-Enable
 
 #define ONEWIRE_PIN A3
 
-#define EEPROM_SIZE 1024   // TODO: Das muesste es auch zentral geben
-
 #define MAX_SENSORS 10   // maximum number of 1-Wire Sensors
 #define DEFAULT_TEMP -273.15   // for unused channels
+#define ERROR_TEMP -273.14     // CRC error
 
 // config of one sensor
 struct sensor_config {
@@ -87,11 +102,26 @@ sensor_config sensors[MAX_SENSORS];
 
 // currently measured temperature
 int currentTemp[MAX_SENSORS];         // Temperatures in °C * 100
-// TODO: If we wwant to work with peering, then the config etc. probably needs to be set by peer
+// TODO: If we want to work with peering, then the config etc. probably needs to be set by peer
 // temperature measured on last send
 int lastSentTemp[MAX_SENSORS];
 // time of last send
 long lastSentTime[MAX_SENSORS];
+
+
+// OneWire
+OneWire myWire(ONEWIRE_PIN);
+
+
+#if DEBUG_VERSION == DEBUG_UNO
+SoftwareSerial rs485(RS485_RXD, RS485_TXD); // RX, TX
+HMWRS485 hmwrs485(&rs485, RS485_TXEN);
+#elif DEBUG_VERSION == DEBUG_UNIV
+HMWRS485 hmwrs485(&Serial, RS485_TXEN);
+#else
+HMWRS485 hmwrs485(&Serial, RS485_TXEN);  // keine Debug-Ausgaben
+#endif
+HMWModule* hmwmodule;   // wird in setup initialisiert
 
 
 // write config to EEPROM in a hopefully smart way
@@ -101,15 +131,10 @@ void writeConfig(){
 	// EEPROM lesen und schreiben
 	ptr = (byte*)(sensors);
 	for(int address = 0; address < sizeof(sensors[0]) * MAX_SENSORS; address++){
-	  if(*ptr != EEPROM.read(address + 0x10))
-		  EEPROM.write(address + 0x10, *ptr);
+	  hmwmodule->writeEEPROM(address + 0x10, *ptr);
 	  ptr++;
     };
 };
-
-
-// OneWire
-OneWire myWire(ONEWIRE_PIN);
 
 
 // Sensor Adressen lesen
@@ -129,13 +154,13 @@ void sensorAddressesGet() {
     if(channel == MAX_SENSORS) break;   // no free slot found
     // now channel points to a free slot
 	if(!myWire.search(addr)) break;     // no further sensor found
-	Serial.print(F("1-Wire Device found:"));
+	hmwdebug(F("\r\n 1-Wire Device found:"));
 	for( byte i = 0; i < 8; i++) {
-	  Serial.write(' ');
-	  Serial.print(addr[i], HEX);
+		hmwdebug(" ");
+		hmwdebug(addr[i], HEX);
 	};
 	if(OneWire::crc8(addr, 7) != addr[7]) {
-	  Serial.println(F("CRC is not valid - ignoring device!"));
+		hmwdebug(F("CRC is not valid - ignoring device!"));
 	  continue;
     };
 	// now we found a valid device, check if this is already known
@@ -144,7 +169,7 @@ void sensorAddressesGet() {
        if(memcmp(addr, sensors[oldChan].address, 8) == 0) break;   // found
     };
     if(oldChan < MAX_SENSORS){
-  	  Serial.println(F("Device already known"));
+    	hmwdebug(F("Device already known"));
   	  continue;
     };
     // we have a new device!
@@ -189,22 +214,11 @@ class HMWDevice : public HMWDeviceBase {
 	  };
 	  // defaults setzen
 	  setDefaults();
-	  // nach neuen Sensoren suchen
-	  sensorAddressesGet();
 	};
 };
 
 // The device will be created in setup()
 HMWDevice hmwdevice;
-
-
-#ifdef DEBUG_UNO
-SoftwareSerial rs485(RS485_RXD, RS485_TXD); // RX, TX
-HMWRS485 hmwrs485(&rs485, RS485_TXEN, &Serial);
-#else
-HMWRS485 hmwrs485(&Serial, RS485_TXEN);  // keine Debug-Ausgaben
-#endif
-HMWModule* hmwmodule;   // wird in setup initialisiert
 
 
 // send "start conversion" to device
@@ -233,7 +247,9 @@ float oneWireReadTemp(byte channel) {
 	  for ( byte i = 0; i < 9; i++) {           // we need 9 bytes
 	    data[i] = myWire.read();
 	  }
-	  // Serial.print(OneWire::crc8(data, 8), HEX);  TODO: Check CRC
+	  // CRC check  TODO: if this happens only once, maybe don't do it
+	  if(OneWire::crc8(data, 8) != data[8])
+		  return ERROR_TEMP;
 
 	  // Convert the data to actual temperature
 	  // because the result is a 16 bit signed integer, it should
@@ -280,7 +296,7 @@ void handleOneWire() {
   };
   // start next measurement
   oneWireStartConversion(currentChannel);
-  // TODO: myWire.depower() ? what does this mean?
+  // myWire.depower() is not needed here as we poll the bus all the time
 };
 
 
@@ -316,7 +332,8 @@ void handleButton() {
       if(buttonState) {   // immer noch gedrueckt
         if(now - lastTime > 5000) status = 2;
       }else{              // nicht mehr gedrückt
-    	if(now - lastTime > 100)   // send announce on short press
+    	if(now - lastTime > 100)   // determine sensors and send announce on short press
+    		sensorAddressesGet();
     		hmwmodule->broadcastAnnounce(0);
         status = 0;
       };
@@ -381,17 +398,17 @@ void handleButton() {
   }
 };
 
-#ifdef DEBUG_UNO
+#if DEBUG_VERSION != DEBUG_NONE
 void printChannelConf(){
   for(byte channel = 0; channel < MAX_SENSORS; channel++) {
-	 Serial.print("Channel     :"); Serial.println(channel);
- 	 Serial.print("Min Interval:"); Serial.println(sensors[channel].send_min_interval);
-   	 Serial.print("Max Interval:"); Serial.println(sensors[channel].send_max_interval);
-   	 Serial.print("Delta Temp  :"); Serial.println(sensors[channel].send_delta_temp);
-   	 Serial.print("Current Temp:"); Serial.println(currentTemp[channel]);
-   	 Serial.print("Last    Temp:"); Serial.println(lastSentTemp[channel]);
-   	 Serial.print("Size        :"); Serial.println(sizeof(sensors[channel]));
-   	 Serial.println();
+	  hmwdebug("Channel     : "); hmwdebug(channel); hmwdebug("\r\n");
+	  hmwdebug("Min Interval: "); hmwdebug(sensors[channel].send_min_interval); hmwdebug("\r\n");
+	  hmwdebug("Max Interval: "); hmwdebug(sensors[channel].send_max_interval); hmwdebug("\r\n");
+	  hmwdebug("Delta Temp  : "); hmwdebug(sensors[channel].send_delta_temp); hmwdebug("\r\n");
+	  hmwdebug("Current Temp: "); hmwdebug(currentTemp[channel]); hmwdebug("\r\n");
+	  hmwdebug("Last Temp   : "); hmwdebug(lastSentTemp[channel]); hmwdebug("\r\n");
+	  hmwdebug("Size        : "); hmwdebug(sizeof(sensors[channel])); hmwdebug("\r\n");
+	  hmwdebug("\r\n");
   }
 }
 #endif
@@ -399,9 +416,12 @@ void printChannelConf(){
 
 void setup()
 {
-#ifdef DEBUG_UNO
+#if DEBUG_VERSION == DEBUG_UNO
 	pinMode(RS485_RXD, INPUT);
 	pinMode(RS485_TXD, OUTPUT);
+#elif DEBUG_VERSION == DEBUG_UNIV
+	pinMode(DEBUG_RXD, INPUT);
+	pinMode(DEBUG_TXD, OUTPUT);
 #endif
 	pinMode(RS485_TXEN, OUTPUT);
 	digitalWrite(RS485_TXEN, LOW);
@@ -409,9 +429,15 @@ void setup()
 	pinMode(BUTTON, INPUT_PULLUP);
 	pinMode(LED, OUTPUT);
 
-#ifdef DEBUG_UNO
-   Serial.begin(57600);
-   rs485.begin(19200);
+#if DEBUG_VERSION == DEBUG_UNO
+   hmwdebugstream = &Serial;
+   Serial.begin(19200);
+   rs485.begin(19200);    // RS485 via SoftwareSerial
+#elif DEBUG_VERSION == DEBUG_UNIV
+   SoftwareSerial* debugSerial = new SoftwareSerial(DEBUG_RXD, DEBUG_TXD);
+   debugSerial->begin(19200);
+   hmwdebugstream = debugSerial;
+   Serial.begin(19200, SERIAL_8E1);
 #else
    Serial.begin(19200, SERIAL_8E1);
 #endif
@@ -425,19 +451,18 @@ void setup()
 
    // config aus EEPROM lesen
    hmwdevice.readConfig();
+   // nach neuen Sensoren suchen
+   sensorAddressesGet();
 
 	// device type: 0x81
-	// serial number
-	// address
-	// TODO: serial number und address sollte von woanders kommen
    // TODO: Modultyp irgendwo als define
- 	hmwmodule = new HMWModule(&hmwdevice, &hmwrs485, 0x81, "HHB2703110", 0x42380122);
+ 	hmwmodule = new HMWModule(&hmwdevice, &hmwrs485, 0x81);
 
-    hmwrs485.debug("huhu\n");
+    hmwdebug("Huhu\n");
 
     // send announce message
 	hmwmodule->broadcastAnnounce(0);
-#ifdef DEBUG_UNO
+#if DEBUG_VERSION != DEBUG_NONE
 	printChannelConf();
 #endif
 }
@@ -465,8 +490,6 @@ void loop()
  // Pruefen, ob wir irgendwas senden muessen
    long now = millis();
    for(byte channel = 0; channel < MAX_SENSORS; channel++) {
-	 // channel has a sensor?
-	 if(sensors[channel].address[0] == 0xFF) continue;
 	 // do not send before min interval
 	 if(sensors[channel].send_min_interval && now - lastSentTime[channel] < (long)(sensors[channel].send_min_interval) * 1000)
 		  continue;

@@ -1,10 +1,10 @@
 <?xml version="1.0" encoding="ISO-8859-1"?>
 <device version="12" eep_size="1024">
 <supported_types>
-<type name="RS485 One Wire 10 Channel Temperature Module" id="HWB-1WIRE-TMP10" priority="2">
+<type name="RS485 One Wire 10 Channel Temperature Module" id="HBW-1W-T10" priority="2">
 <parameter index="0" size="1" const_value="129"/><parameter index="1" size="1" const_value="0"/>
 </type></supported_types>
-<paramset type="MASTER" id="HWB-ONEWIRE_dev_master">
+<paramset type="MASTER" id="HBW-1W-T10_dev_master">
 	<parameter id="CENTRAL_ADDRESS" hidden="true">
 		<logical type="integer"/><physical type="integer" size="4" interface="eeprom"><address index="0x0002"/></physical>
 	</parameter>

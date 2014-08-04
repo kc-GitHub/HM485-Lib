@@ -9,14 +9,13 @@
  */
 
 #include "HMWRS485.h"
+#include "HMWDebug.h"
 
 #include "Arduino.h"
 
-HMWRS485::HMWRS485(Stream* _serial, byte _txEnablePin, Stream* _debugSerial) {
+HMWRS485::HMWRS485(Stream* _serial, byte _txEnablePin) {
 	serial = _serial;
 	txEnablePin = _txEnablePin;
-	debugSerial = _debugSerial;
-
 	frameComplete = 0;
 }
 
@@ -27,8 +26,6 @@ HMWRS485::~HMWRS485() {
 // TODO: Vielleicht kann man das ganze als Zustandsautomat implementieren,
 //       um Speicherplatz zu sparen
 
-// TODO: Serielle Kommunikation "flexibel" gestalten
-//       SoftSerial vs. Serial
 // TODO: Eigene SoftSerial Library mit entsprechender Parity etc.?
 //   $baud = 19200
 //   config Com1 = Dummy , Synchrone = 0 , Parity = even , Stopbits = 1 , Databits = 8 , Clockpol = 0
@@ -64,23 +61,6 @@ void HMWRS485::parseFrame () {
   byte txSeqNum;
   byte foundCtrl;
   byte foundTxSeqNum;
-
-// TODO: Debug-Ausgaben
-//      debug "Adress: " ; hex(hmwTxSenderAdress(1)) ; " " ; hex(hmwTxSenderAdress(2)) ; " " ; hex(hmwTxSenderAdress(3)) ; " " ; hex(hmwTxSenderAdress(4)) ; " "
-
-//      debug "Target dword " ; hex(hmwTargetAdressDword)
-
-//      debug "StartByte: " ; hex(hmwStartByte)
-//      debug "Target: " ; hex(hmwTargetAdress(1)) ; " " ; hex(hmwTargetAdress(2)) ; " " ; hex(hmwTargetAdress(3)) ; " " ; hex(hmwTargetAdress(4)) ; " "
-//      debug "Ctrl: " ; hex(hmwFrameControllByte)
-//      debug "Sender: " ; hex(hmwSenderAdress(1)) ; " " ; hex(hmwSenderAdress(2)) ; " " ; hex(hmwSenderAdress(3)) ; " " ; hex(hmwSenderAdress(4)) ; " "
-//      debug "FrameLength: " ; hex(hmwFrameDataLength)
-//      debug "FrameData: " ;
-
-//      for ii = 1 to hmwFrameDataLength
-//         debug hex(hmwFrameData(ii)) ; " ";
-//      next
-//      debug "."
 
       frameComplete = 0;
 
@@ -184,10 +164,10 @@ void HMWRS485::sendFrame() {
         txFrameControlByte |= (txSeqNum << 5);
       };
 
-      debug("\nSending\n");
+      hmwdebug(F("\nSending\n"));
       digitalWrite(txEnablePin, HIGH);
       serial->write(FRAME_START_LONG);  // send startbyte
-      delay(1);  //TODO: Really?
+      serial->flush();                  // othwerwise, enable pin will go low too soon
       digitalWrite(txEnablePin, LOW);
       crc16checksum = crc16Shift(FRAME_START_LONG , crc16checksum);
 
@@ -236,9 +216,7 @@ void HMWRS485::sendFrame() {
 // Before sending check byte for special chars. Special chars are escaped before sending
 void HMWRS485::sendFrameByte(byte sendByte) {
 	   // Debug
-	    char buf[10];
-	    sprintf(buf, "%02X-", sendByte);
-	    debug(buf);
+	hmwdebug(sendByte, HEX);
 
   // "Senden" einschalten
       digitalWrite(txEnablePin, HIGH);
@@ -248,7 +226,7 @@ void HMWRS485::sendFrameByte(byte sendByte) {
       };
       serial->write(sendByte);
   // "Senden" ausschalten
-      delay(1);    // TODO: Really?
+      serial->flush();                  // othwerwise, enable pin will go low too soon
       digitalWrite(txEnablePin, LOW);
 };
 
@@ -319,10 +297,8 @@ void HMWRS485::receive(){
     byte rxByte = serial->read();    // von Serial oder SoftSerial
 
     // Debug
-    if( rxByte == 0xFD ) debug("\nReceiving \n");
-    char buf[10];
-    sprintf(buf, "%02X-", rxByte);
-    debug(buf);
+    if( rxByte == 0xFD ) hmwdebug(F("\nReceiving \n"));
+    hmwdebug(rxByte, HEX);
 
    if(rxByte == ESCAPE_CHAR && !(frameStatus & FRAME_ESCAPE)){
 // TODO: Wenn frameEscape gesetzt ist, dann sind das zwei Escapes hintereinander
@@ -396,7 +372,7 @@ void HMWRS485::receive(){
                   // es liegt eine neue Nachricht vor
                   frameComplete = 1;
                }else{
-                  debug("crc error");
+            	  hmwdebug(F("crc error"));
                }
             }
          }
@@ -404,10 +380,4 @@ void HMWRS485::receive(){
     }
   }
 } // receive
-
-
-void HMWRS485::debug(char* msg) {
-	if(debugSerial) debugSerial->print(msg);
-}
-
 
