@@ -1,0 +1,92 @@
+<?xml version="1.0" encoding="ISO-8859-1"?>
+<device version="12" eep_size="1024">
+<supported_types>
+<type name="RS485 Motion Detection Sensor" id="HBW-Sec-MDIR-2" priority="2">
+<parameter index="0" size="1" const_value="145"/><parameter index="1" size="1" const_value="0"/>
+</type></supported_types>
+<paramset type="MASTER" id="HBW-Sec-MDIR-2_dev_master">
+	<parameter id="CENTRAL_ADDRESS" hidden="true">
+		<logical type="integer"/><physical type="integer" size="4" interface="eeprom"><address index="0x0002"/></physical>
+	</parameter>
+	<enforce id="CENTRAL_ADDRESS" value="1"/>
+</paramset>
+<frames>
+	<frame id="LEVEL_GET" direction="to_device" type="#S" channel_field="10"/>
+	<frame id="INFO_LEVEL" direction="from_device" event="true" type="#i" channel_field="10">
+		<parameter type="integer" signed="true" index="11.0" size="2.0" param="STATE"/>
+	</frame>
+</frames>
+<channels>
+	<channel index="0" type="MAINTENANCE" ui_flags="internal" class="maintenance" count="1">
+		<paramset type="MASTER" id="maint_ch_master"/>
+		<paramset type="VALUES" id="maint_ch_values">
+			<parameter id="UNREACH" operations="read,event" ui_flags="service">
+				<logical type="boolean"/>
+				<physical type="integer" interface="internal" value_id="UNREACH"/>
+			</parameter>
+			<parameter id="STICKY_UNREACH" operations="read,write,event" ui_flags="service">
+				<logical type="boolean"/><physical type="integer" interface="internal" value_id="STICKY_UNREACH"/>
+			</parameter>
+			<parameter id="CONFIG_PENDING" operations="read,event" ui_flags="service">
+				<logical type="boolean"/><physical type="integer" interface="internal" value_id="CONFIG_PENDING"/>
+			</parameter>
+		</paramset>
+	</channel>
+	<channel index="1" count="1" physical_index_offset="-1" type="TEMPSENSOR">
+	    <paramset type="MASTER" id="hmw_input_ch_master" address_step="16" address_start="0x10">
+			<parameter id="SEND_DELTA_TEMP">
+			   <logical type="float" unit="&#x2103;" default="0.5" min="0.1" max="25.0">
+			       <special_value id="NOT_USED" value="0"/>
+			   </logical>	   
+               <physical size="1.0" type="integer" interface="eeprom">
+                  <address index="+1.0"/>
+               </physical>	
+               <conversion type="float_integer_scale" factor="10"/>		
+               <conversion type="integer_integer_map">
+                 <value_map to_device="false" from_device="true" parameter_value="5" device_value="0xff"/>
+               </conversion>			   
+			</parameter>
+			<parameter id="SEND_MIN_INTERVAL">
+			   <logical type="integer" unit="s" default="10" min="5" max="3600">
+			     <special_value id="NOT_USED" value="0"/>
+			   </logical>	   
+               <physical size="2.0" type="integer" interface="eeprom" endian="little">
+                  <address index="+3.0"/>
+               </physical>	  
+               <conversion type="integer_integer_map">
+                 <value_map to_device="false" from_device="true" parameter_value="10" device_value="0xffff"/>
+               </conversion>				   
+			</parameter>
+			<parameter id="SEND_MAX_INTERVAL">
+			   <logical type="integer" unit="s" default="150" min="5" max="3600">
+			     <special_value id="NOT_USED" value="0"/>
+			   </logical>	   
+               <physical size="2.0" type="integer" interface="eeprom" endian="little">
+                  <address index="+5.0"/>
+               </physical>	
+               <conversion type="integer_integer_map">
+                 <value_map to_device="false" from_device="true" parameter_value="150" device_value="0xffff"/>
+               </conversion>				   
+			</parameter>
+			<parameter id="ONEWIRE_TYPE">
+			   <logical type="integer" min="0" max="254">
+			      <special_value id="NOT_USED" value="255"/>
+			    </logical>	  	  
+               <physical size="1.0" type="integer" interface="eeprom">
+                  <address index="+7.0"/>
+               </physical>	   
+			</parameter>		
+		</paramset>
+		<paramset type="VALUES" id="hmw_analog_input_values">
+			<parameter id="TEMPERATURE" operations="read,event">
+				<logical type="float" min="-273.15" max="327.67" unit="&#x2103;"/>
+				<physical type="integer" interface="command" value_id="TEMPERATURE">
+					<get request="LEVEL_GET" response="INFO_LEVEL"/>
+					<event frame="INFO_LEVEL"/>
+				</physical>
+				<conversion type="float_integer_scale" factor="100"/>
+			</parameter>
+		</paramset>		
+	</channel>
+</channels>
+</device>
