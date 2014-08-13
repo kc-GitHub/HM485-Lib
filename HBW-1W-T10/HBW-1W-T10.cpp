@@ -127,7 +127,6 @@ HMWModule* hmwmodule;   // wird in setup initialisiert
 // write config to EEPROM in a hopefully smart way
 void writeConfig(){
     byte* ptr;
-    byte data;
 	// EEPROM lesen und schreiben
 	ptr = (byte*)(sensors);
 	for(int address = 0; address < sizeof(sensors[0]) * MAX_SENSORS; address++){
@@ -190,6 +189,18 @@ void setDefaults(){
 };
 
 
+// After writing the central Address to the EEPROM, the CCU does
+// not trigger a re-read config
+unsigned long centralAddressGet() {
+  unsigned long result = 0;
+  for(int address = 2; address < 6; address++){
+	result <<= 8;
+	result |= EEPROM.read(address);
+  };
+  return result;
+};
+
+
 // Klasse fuer Callbacks vom Protokoll
 class HMWDevice : public HMWDeviceBase {
   public:
@@ -207,6 +218,7 @@ class HMWDevice : public HMWDeviceBase {
 	void readConfig(){
       byte* ptr;
 	  // EEPROM lesen
+      // sensor config
 	  ptr = (byte*)(sensors);
 	  for(int address = 0; address < sizeof(sensors[0]) * MAX_SENSORS; address++){
 	    *ptr = EEPROM.read(address + 0x10);
@@ -303,6 +315,9 @@ void handleOneWire() {
 void factoryReset() {
   // writes FF into config
   memset(sensors, 0xFF, sizeof(sensors[0]) * MAX_SENSORS);
+  // central address
+  for(int address = 2; address < 6; address++)
+    EEPROM.write(address, 0xFF);
   // set defaults
   setDefaults();
   // nach neuen Sensoren suchen
@@ -460,11 +475,11 @@ void setup()
 
     hmwdebug("Huhu\n");
 
-    // send announce message
-	hmwmodule->broadcastAnnounce(0);
 #if DEBUG_VERSION != DEBUG_NONE
 	printChannelConf();
 #endif
+    // send announce message
+	hmwmodule->broadcastAnnounce(0);
 }
 
 
@@ -496,7 +511,7 @@ void loop()
      if(    (sensors[channel].send_max_interval && now - lastSentTime[channel] >= (long)(sensors[channel].send_max_interval) * 1000)
     	 || (sensors[channel].send_delta_temp
     	         && abs( currentTemp[channel] - lastSentTemp[channel] ) >= (unsigned int)(sensors[channel].send_delta_temp) * 10)) {
-	     hmwmodule->broadcastInfoMessage(channel,currentTemp[channel]);
+	     hmwmodule->sendInfoMessage(channel,currentTemp[channel], centralAddressGet());
          lastSentTemp[channel] = currentTemp[channel];
          lastSentTime[channel] = now;
      };

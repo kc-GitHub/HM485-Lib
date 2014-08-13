@@ -35,7 +35,7 @@ public:
 
 	void broadcastAnnounce(byte);  // channel
 	void broadcastKeyEvent(byte, byte, byte = 0);  // channel, keyPressNum, long/short (long = 1)
-	void broadcastInfoMessage(byte, unsigned int);   // channel, info
+	void sendInfoMessage(byte, unsigned int, unsigned long);   // channel, info, target address
 
 	byte deviceType;        // device type @ 0x7FF1 in FlashRom  TODO: Not really...
 

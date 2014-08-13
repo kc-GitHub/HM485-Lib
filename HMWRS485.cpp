@@ -200,11 +200,11 @@ void HMWRS485::sendFrame() {
             sendFrameByte(txFrameData[i]);
             crc16checksum = crc16Shift(txFrameData[i], crc16checksum);
     	}
-      crc16checksum = crc16Shift(0 , crc16checksum);  // TODO: ???
+      crc16checksum = crc16Shift(0 , crc16checksum);
       crc16checksum = crc16Shift(0 , crc16checksum);
 
       // CRC schicken
-      sendFrameByte(crc16checksum / 0x100);   // TODO: High byte first? Ist das auch bei Adressen so?
+      sendFrameByte(crc16checksum / 0x100);
       sendFrameByte(crc16checksum & 0xFF);
 
       frameStatus |= FRAME_SENTACKWAIT;
@@ -351,9 +351,6 @@ void HMWRS485::receive(){
             rxFrameData[framePointer] = rxByte;   // Daten in Puffer speichern
             framePointer++;
             if(framePointer == rxFrameDataLength) {  // Daten komplett
-// TODO: Fehlt da die Checksumme, oder ist rxFrameDataLength sowieso inklusive CRC?
-//               crc16Register = crc16Shift(0 , crc16Register)
-//               crc16Register = crc16Shift(0 , crc16Register)
                if(crc16checksum == 0) {    //
             	  frameStatus &= ~FRAME_START;
                   frameStatus |= FRAME_CRCOK;

@@ -268,8 +268,8 @@ void HMWModule::processEventKey(){
    };
 
    // "i-Message" ueber broadcast senden
-     void HMWModule::broadcastInfoMessage(byte channel, unsigned int info) {
-  	   hmwrs485->txTargetAddress = 0xFFFFFFFF;  // broadcast
+     void HMWModule::sendInfoMessage(byte channel, unsigned int info, unsigned long target_address) {
+  	   hmwrs485->txTargetAddress = target_address;  // normally central or broadcast
   	   hmwrs485->txFrameControlByte = 0xF8;     // control byte
   	   hmwrs485->txFrameDataLength = 0x04;      // Length
   	   hmwrs485->txFrameData[0] = 0x69;         // 'i'
