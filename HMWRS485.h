@@ -14,26 +14,35 @@
 
 // TODO: Do the device relations really belong here?
 // TODO: Wo werden die Device Relations gesetzt? Irgendwo im EEPROM?
-#define MAX_DEVICE_RELATIONS 100
+// #define MAX_DEVICE_RELATIONS 100  TODO: loeschen, wenn nicht gebraucht
+
+// Abstrakte Basisklasse mit Callbacks fuer Verwender
+class HMWModuleBase {
+  public:
+// processEvent wird nur aufgerufen, wenn es fuer das Modul was zu tun gibt
+// Also nicht fuer ACKs oder duplicates
+// TODO: Should return whether an ACK is needed or not
+	virtual void processEvent(byte const * const frameData, byte frameDataLength, boolean isBroadcast = false) = 0;  // Data, broadcast-Flag
+};
+
 
 class HMWRS485 {
 public:
 	HMWRS485(Stream*, byte);  // RS485 interface, TX-Enable Pin
 	virtual ~HMWRS485();
 
-	void receive();  // muss zyklisch aufgerufen werden
+	void loop(); // main loop, die immer wieder aufgerufen werden muss
 
-	void parseFrame();
+	// sendFrame macht ggf. Wiederholungen
 	void sendFrame();
 	void sendAck();  // ACK fuer gerade verarbeitete Message senden
 
-	// Empfangen
-	byte frameComplete;
-    unsigned long targetAddress;
-	byte frameDataLength;                 // Laenge der Daten
-	byte frameData[MAX_RX_FRAME_LENGTH];
-	byte startByte;
-	byte frameControlByte;
+	// Modul-Definition, wird vom Modul selbst gesetzt
+	// TODO: Ist das gutes Design?
+   HMWModuleBase* module;
+
+    // Senderadresse beim Empfangen
+    // TODO: Das sollte private sein, wird aber momentan noch vom Modul verwendet
 	unsigned long senderAddress;
 
 	// Senden
@@ -48,18 +57,22 @@ private:
 	Stream* serial;
 // Pin-Nummer fuer "TX-Enable"
 	byte txEnablePin;
-	// TODO: Das Folgende geht etwas verschwenderisch mit dem Speicher um
-	// Addressen, auf deren ACK gewartet wird (?)
-	unsigned long waitAckAddress[MAX_DEVICE_RELATIONS];
-	// Nummer der gesendeten Nachricht, auf deren ACK wir warten (?)
-	// TODO: oder sogar das ganze CTRL-Byte?
-	byte waitAckSeqNum[MAX_DEVICE_RELATIONS];
-
 	// Empfangs-Status
 	byte frameStatus;
+// Empfangene Daten
+	// Empfangen
+	byte frameComplete;
+    unsigned long targetAddress;
+	byte frameDataLength;                 // Laenge der Daten
+	byte frameData[MAX_RX_FRAME_LENGTH];
+	byte startByte;
+	byte frameControlByte;
 
-	byte findCtrlByAddress(unsigned long);
-	void resetAckwaitByAddress(unsigned long);
+	// Sende-Versuch, wird ggf. wiederholt
+	void receive();  // wird zyklisch aufgerufen
+	boolean parseFrame();
+
+	void sendFrameSingle();
 	void sendFrameByte(byte);
 	unsigned int crc16Shift(byte, unsigned int);
 };

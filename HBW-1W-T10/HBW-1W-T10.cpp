@@ -486,15 +486,9 @@ void setup()
 // The loop function is called in an endless loop
 void loop()
 {
-// Daten empfangen (tut nichts, wenn keine Daten vorhanden)
-   hmwrs485.receive();
- // Check
-   if(hmwrs485.frameComplete) {
-      if(hmwrs485.targetAddress == hmwrs485.txSenderAddress || hmwrs485.targetAddress == 0xFFFFFFFF){
-        hmwrs485.parseFrame();
-        hmwmodule->processEvents();
-      }
-   };
+// Daten empfangen und alles, was zur Kommunikationsschicht gehört
+// processEvent vom Modul wird als Callback aufgerufen
+   hmwrs485.loop();
 
  // Temperatur lesen
    handleOneWire();
