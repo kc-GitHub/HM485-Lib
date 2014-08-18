@@ -16,6 +16,7 @@
 HMWModule::HMWModule(HMWDeviceBase* _device, HMWRS485* _hmwrs485, byte _deviceType) {
   device = _device;
   hmwrs485 = _hmwrs485;
+  hmwrs485->module = this;   // fuer callbacks von Kommunikationsschicht
   deviceType = _deviceType;
   // TODO: Entscheiden, ob die device address zum Protokoll oder zum Modul gehoert
   readAddressFromEEPROM();
@@ -26,19 +27,17 @@ HMWModule::~HMWModule() {
 }
 
 // Processing of default events (related to all modules)
-void HMWModule::processEvents() {
+void HMWModule::processEvent(byte const * const frameData, byte frameDataLength, boolean isBroadcast) {
       unsigned int adrStart;
       byte sendAck;
 
-      // ACKs werden nicht prozessiert
-      // TODO: Das gehoert eigentlich ins Protokoll eine Schicht tiefer
-      if((hmwrs485->frameControlByte & 0x03) == 0x01) return;
+      // ACKs kommen hier nicht an, werden eine Schicht tiefer abgefangen
 
       // Wenn irgendwas von Broadcast kommt, dann gibt es darauf keine
       // Reaktion, ausser z und Z (und es kommt von der Zentrale)
       // TODO: Muessen wir pruefen, ob's wirklich von der Zentrale kommt?
-      if(hmwrs485->targetAddress == 0xFFFFFFFF){
-    	switch(hmwrs485->frameData[0]){
+      if(isBroadcast){
+    	switch(frameData[0]){
     	  case 'Z':                                                               // End discovery mode
     	    // reset hmwModuleDiscovering
     	    // TODO: Discovery mode
@@ -52,22 +51,19 @@ void HMWModule::processEvents() {
       };
 
       hmwrs485->txTargetAddress = hmwrs485->senderAddress;
-      // gibt es was zu verarbeiten?
-      // wenn nicht, dann einfach ein ACK schicken
-      if(hmwrs485->frameDataLength <= 0){
-    	  hmwrs485->sendAck();
-    	  return;
-      }
+      // gibt es was zu verarbeiten -> Ja, die Kommunikationsschicht laesst nur Messages durch,
+      // die auch Daten enthalten
 
+      // TODO: Das frame control byte sollte komplett unter Kontrolle von HMWRS485 sein
       hmwrs485->txFrameControlByte = 0x78;
 
       sendAck = 1;
-      switch(hmwrs485->frameData[0]){
+      switch(frameData[0]){
          case '@':                                      // HBW-specifics
-           if(hmwrs485->frameData[1] == 'a' && hmwrs485->frameDataLength == 6) {  // "a" -> address set
+           if(frameData[1] == 'a' && frameDataLength == 6) {  // "a" -> address set
         	 // TODO: Avoid "central" addresses (like 0000...)
         	 for(byte i = 0; i < 4; i++)
-        	   writeEEPROM(E2END - 3 + i, hmwrs485->frameData[i + 2], true);
+        	   writeEEPROM(E2END - 3 + i, frameData[i + 2], true);
            };
            readAddressFromEEPROM();
            break;
@@ -75,7 +71,7 @@ void HMWModule::processEvents() {
             // reset the Module jump after the bootloader
         	// Nur wenn das zweite Zeichen auch ein "!" ist
         	// TODO: Wirklich machen, aber wie geht das?
-            if(hmwrs485->frameData[1] == '!') { };   //  then goto 0
+            if(frameData[1] == '!') { };   //  then goto 0
             break;
          case 'A':                                                             // Announce
             sendAck = 2;
@@ -85,7 +81,7 @@ void HMWModule::processEvents() {
             break;
          case 'E':                           // see separate docs
         	sendAck = 0;
-        	processEmessage();
+        	processEmessage(frameData);
             break;
          case 'K':                                                              // Key-Event
             processEventKey();
@@ -93,26 +89,26 @@ void HMWModule::processEvents() {
             break;
          case 'R':                                                              // Read EEPROM
         	// TODO: Check requested length...
-            if(hmwrs485->frameDataLength == 4) {                                // Length of before incoming data must be 4
+            if(frameDataLength == 4) {                                // Length of before incoming data must be 4
                sendAck = 0;
                hmwdebug(F("read eeprom"));
-               adrStart = ((unsigned int)(hmwrs485->frameData[1]) << 8) | hmwrs485->frameData[2];  // start adress of eeprom
-               for(byte i = 0; i < hmwrs485->frameData[3]; i++) {
+               adrStart = ((unsigned int)(frameData[1]) << 8) | frameData[2];  // start adress of eeprom
+               for(byte i = 0; i < frameData[3]; i++) {
             	   hmwrs485->txFrameData[i] = EEPROM.read(adrStart + i);
                };
-               hmwrs485->txFrameDataLength = hmwrs485->frameData[3];
+               hmwrs485->txFrameDataLength = frameData[3];
             };
             break;
          case 'S':                                                               // GET Level
-            processEventGetLevel();
+            processEventGetLevel(frameData[1]);
             sendAck = 2;
             break;
          case 'W':                                                               // Write EEPROM
-            if(hmwrs485->frameDataLength == hmwrs485->frameData[3] + 4) {
+            if(frameDataLength == frameData[3] + 4) {
             	hmwdebug(F("write eeprom"));
-               adrStart = ((unsigned int)(hmwrs485->frameData[1]) << 8) | hmwrs485->frameData[2];  // start adress of eeprom
-               for(byte i = 4; i < hmwrs485->frameDataLength; i++){
-            	 writeEEPROM(adrStart+i-4, hmwrs485->frameData[i]);
+               adrStart = ((unsigned int)(frameData[1]) << 8) | frameData[2];  // start adress of eeprom
+               for(byte i = 4; i < frameDataLength; i++){
+            	 writeEEPROM(adrStart+i-4, frameData[i]);
                }
             };
             break;
@@ -140,7 +136,7 @@ void HMWModule::processEvents() {
             // TODO: ???
         	break;
          case 's':                                                               // Aktor setzen
-            processEventSetLevel();
+            processEventSetLevel(frameData[1], frameData[2]);
             break;
          case 'u':                                                              // Update (Bootloader starten)
             // Bootloader neu starten
@@ -155,7 +151,7 @@ void HMWModule::processEvents() {
             hmwrs485->txFrameDataLength = 2;
             break;
          case 'x':                                                               // Level set
-            processEventSetLevel();                                               // Install-Test TODO: ???
+            processEventSetLevel(frameData[1], frameData[2]);                                               // Install-Test TODO: ???
             sendAck = 2;
             break;
 
@@ -181,20 +177,20 @@ void HMWModule::processEventKey(){
 	// TODO
 };
 
-   void HMWModule::processEventSetLevel(){
+   void HMWModule::processEventSetLevel(byte channel, unsigned int level){
 	 // tell the hardware
-     device->setLevel(hmwrs485->frameData[1], hmwrs485->frameData[2]);
+     device->setLevel(channel, level);
      // get what the hardware did and send it back
-     processEventGetLevel();
+     processEventGetLevel(channel);
    };
 
 
-   void HMWModule::processEventGetLevel(){
+   void HMWModule::processEventGetLevel(byte channel){
 	 // get value from the hardware and send it back
 	 hmwrs485->txFrameDataLength = 0x04;      // Length
 	 hmwrs485->txFrameData[0] = 0x69;         // 'i'
-	 hmwrs485->txFrameData[1] = hmwrs485->frameData[1];      // Sensornummer
-	 unsigned int info = device->getLevel(hmwrs485->frameData[1]);
+	 hmwrs485->txFrameData[1] = channel;      // Sensornummer
+	 unsigned int info = device->getLevel(channel);
 	 hmwrs485->txFrameData[2] = info / 0x100;
 	 hmwrs485->txFrameData[3] = info & 0xFF;
    };
@@ -205,11 +201,11 @@ void HMWModule::processEventKey(){
    };
 
 
-   void HMWModule::processEmessage() {
+   void HMWModule::processEmessage(byte const * const frameData) {
 	 // process E-Message
 
-     byte blocksize = hmwrs485->frameData[3];
-     byte blocknum  = hmwrs485->frameData[4];
+     byte blocksize = frameData[3];
+     byte blocknum  = frameData[4];
 
      // length of response
      hmwrs485->txFrameDataLength = 4 + blocknum / 8;
@@ -222,9 +218,9 @@ void HMWModule::processEventKey(){
      // first byte "e" - answer on "E"
      hmwrs485->txFrameData[0]  = 0x65;  //e
      // next 3 bytes are just repeated from request
-     hmwrs485->txFrameData[1]  = hmwrs485->frameData[1];
-     hmwrs485->txFrameData[2]  = hmwrs485->frameData[2];
-     hmwrs485->txFrameData[3]  = hmwrs485->frameData[3];
+     hmwrs485->txFrameData[1]  = frameData[1];
+     hmwrs485->txFrameData[2]  = frameData[2];
+     hmwrs485->txFrameData[3]  = frameData[3];
 
      // determine whether blocks are used
      for(int block = 0; block <= blocknum; block++) {
@@ -268,8 +264,8 @@ void HMWModule::processEventKey(){
    };
 
    // "i-Message" ueber broadcast senden
-     void HMWModule::broadcastInfoMessage(byte channel, unsigned int info) {
-  	   hmwrs485->txTargetAddress = 0xFFFFFFFF;  // broadcast
+     void HMWModule::sendInfoMessage(byte channel, unsigned int info, unsigned long target_address) {
+  	   hmwrs485->txTargetAddress = target_address;  // normally central or broadcast
   	   hmwrs485->txFrameControlByte = 0xF8;     // control byte
   	   hmwrs485->txFrameDataLength = 0x04;      // Length
   	   hmwrs485->txFrameData[0] = 0x69;         // 'i'

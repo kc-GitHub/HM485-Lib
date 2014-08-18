@@ -25,17 +25,16 @@ class HMWDeviceBase {
 	virtual void readConfig() = 0;         // read config from EEPROM
 };
 
-
-class HMWModule {
+class HMWModule : public HMWModuleBase {
 public:
 	HMWModule(HMWDeviceBase*, HMWRS485*, byte); // rs485, device type
 	virtual ~HMWModule();
 
-	void processEvents();
+	virtual void processEvent(byte const * const frameData, byte frameDataLength, boolean isBroadcast = false);
 
 	void broadcastAnnounce(byte);  // channel
 	void broadcastKeyEvent(byte, byte, byte = 0);  // channel, keyPressNum, long/short (long = 1)
-	void broadcastInfoMessage(byte, unsigned int);   // channel, info
+	void sendInfoMessage(byte, unsigned int, unsigned long);   // channel, info, target address
 
 	byte deviceType;        // device type @ 0x7FF1 in FlashRom  TODO: Not really...
 
@@ -51,10 +50,10 @@ private:
 	void determineSerial(byte*);
 
 	void processEventKey();
-    void processEventSetLevel();
-	void processEventGetLevel();
+    void processEventSetLevel(byte channel, unsigned int level);
+	void processEventGetLevel(byte channel);
 	void processEventSetLock();
-	void processEmessage();
+	void processEmessage(byte const * const frameData);
 };
 
 #endif /* HMWMODULE_H_ */
