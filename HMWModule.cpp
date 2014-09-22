@@ -299,6 +299,19 @@ void HMWModule::processEventKey(){
      }
 
 
+
+     void HMWModule::setNewId(){
+       if (hmwrs485->txSenderAddress == 0x42FFFFFF) {
+    	 hmwrs485->txSenderAddress = millis();
+    	 hmwdebug("Setting new ID:");
+    	 hmwdebug(hmwrs485->txSenderAddress);
+    	 for(byte i = 0; i < 4; i++)
+    	   writeEEPROM(E2END - i, hmwrs485->txSenderAddress >> (i*8), true);
+       }
+     }
+
+
+
      void HMWModule::determineSerial(byte* buf) {
        char numAsStr[20];
        sprintf(numAsStr, "%07lu", hmwrs485->txSenderAddress % 10000000L );

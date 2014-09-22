@@ -41,6 +41,7 @@ public:
 	// write to EEPROM, but only if not "value" anyway
 	// the uppermost 4 bytes are reserved for the device address and can only be changed if privileged = true
 	void writeEEPROM(int address, byte value, bool privileged = false );
+	void setNewId();
 
 private:
 	HMWRS485* hmwrs485;
