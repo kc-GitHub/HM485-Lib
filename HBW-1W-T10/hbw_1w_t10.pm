@@ -105,7 +105,7 @@ our %definition = (
 					}
 				}
 			},
-			'digital_analog_input'	=> {
+			'Temperature'	=> {
 				'id'	=> 1,
 				'count'	=> 10,
 				'physical_id_offset'	=> -1,
@@ -134,10 +134,6 @@ our %definition = (
 								'max'	 	=> 25,
 								'default'	=> 0.5,
 							},
-							'conversion'	=> {
-								'type'		=> 'float_integer_scale',
-								'factor'	=> 10,
-								'ofset'		=> 0.0,
 							'physical'	=> {
 								'type'			=> 'int',
 								'size'			=> 1,
@@ -179,7 +175,7 @@ our %definition = (
 						}
 					},
 					'values'	=> {
-						'value' => {
+						'temperature' => {
 							'operations'	=> 'read,event', 
 							'logical'		=> {
 								'type'		=> 'float',
