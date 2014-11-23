@@ -15,7 +15,7 @@
 // TODO: Firmware/Hardware Version aus EEPROM bzw. Flash?
 #define MODULE_HARDWARE_VERSION 1
 #define MODULE_FIRMWARE_VERSION 0x0306
-
+#
 
 // Abstrakte Basisklasse mit Callbacks aus dem Modul
 class HMWDeviceBase {
@@ -27,13 +27,14 @@ class HMWDeviceBase {
 
 class HMWModule : public HMWModuleBase {
 public:
+	#define HMW_TARGET_ADDRESS_BC ((unsigned long) 0xFFFFFFFF)
 	HMWModule(HMWDeviceBase*, HMWRS485*, byte); // rs485, device type
 	virtual ~HMWModule();
 
 	virtual void processEvent(byte const * const frameData, byte frameDataLength, boolean isBroadcast = false);
 
 	void broadcastAnnounce(byte);  // channel
-	void broadcastKeyEvent(byte, byte, byte = 0);  // channel, keyPressNum, long/short (long = 1)
+	void sendKeyEvent(byte, byte, byte = 0,unsigned long = HMW_TARGET_ADDRESS_BC,byte = 0);  // channel, keyPressNum, long/short (long = 1), target address
 	void sendInfoMessage(byte, unsigned int, unsigned long);   // channel, info, target address
 
 	byte deviceType;        // device type @ 0x7FF1 in FlashRom  TODO: Not really...

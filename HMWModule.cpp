@@ -113,7 +113,7 @@ void HMWModule::processEvent(byte const * const frameData, byte frameDataLength,
             };
             break;
 
-         case 'c':                                                               // Zieladresse löschen?
+         case 'c':                                                               // Zieladresse lï¿½schen?
             // TODO: ???
             break;
 
@@ -132,7 +132,7 @@ void HMWModule::processEvent(byte const * const frameData, byte frameDataLength,
         	hmwrs485->txFrameDataLength = 10;
         	sendAck = 0;
         	break;
-         case 'q':                                                               // Zieladresse hinzufügen?
+         case 'q':                                                               // Zieladresse hinzufï¿½gen?
             // TODO: ???
         	break;
          case 's':                                                               // Aktor setzen
@@ -155,7 +155,7 @@ void HMWModule::processEvent(byte const * const frameData, byte frameDataLength,
             sendAck = 2;
             break;
 
-         case 'Ë':                                                               // Key-Sim-Event
+         case 'ï¿½':                                                               // Key-Sim-Event
             processEventKey();
             sendAck = 2;
             break;
@@ -251,13 +251,13 @@ void HMWModule::processEventKey(){
    };
 
    // "Key Pressed" ueber broadcast senden
-   void HMWModule::broadcastKeyEvent(byte channel, byte keyPressNum, byte longPress) {
-	   hmwrs485->txTargetAddress = 0xFFFFFFFF;  // broadcast
+   void HMWModule::sendKeyEvent(byte channel, byte keyPressNum, byte longPress,unsigned long target_address,byte targetchannel) {
+	   hmwrs485->txTargetAddress = target_address;  // broadcast
 	   hmwrs485->txFrameControlByte = 0xF8;     // control byte
 	   hmwrs485->txFrameDataLength = 0x04;      // Length
 	   hmwrs485->txFrameData[0] = 0x4B;         // 'K'
 	   hmwrs485->txFrameData[1] = channel;      // Sensornummer
-	   hmwrs485->txFrameData[2] = 0;            // Zielaktor
+	   hmwrs485->txFrameData[2] = targetchannel;            // Zielaktor
 	   // TODO: Counter
 	   hmwrs485->txFrameData[3] = (longPress ? 3 : 2) + (keyPressNum << 2);
 	   hmwrs485->sendFrame();

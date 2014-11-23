@@ -51,7 +51,6 @@
 #define DEBUG_UNO 1    // Hardware-Serial ist Debug-Ausgang, RS485 per Soft auf pins 5/6
 #define DEBUG_UNIV 2   // Hardware-Serial ist RS485, Debug per Soft auf pins 5/6
 
-
 // Do not remove the include below
 #include "HBWSecMDIR.h"
 
@@ -64,25 +63,20 @@
 #include "HMWDebug.h"
 
 #include <MsTimer2.h>
-
 #include <EEPROM.h>
-
 // HM Wired Protokoll
 #include "HMWRS485.h"
-// default module methods
-#include "HMWModule.h"
+
 
 // Ein paar defines...
 #if DEBUG_VERSION == DEBUG_UNO
   #define RS485_RXD 2
   #define RS485_TXD 3
-  #define LED 13
 #elif DEBUG_VERSION == DEBUG_UNIV
   #define DEBUG_RXD 2
   #define DEBUG_TXD 3
-  #define LED 13
 #else
-  #define LED 13        // Signal-LED
+
 #endif
 
 #define RS485_TXEN 4
@@ -95,13 +89,7 @@
 #define MD_OFF_DELAY_MS 6000
 #endif
 
-#ifndef EXT_BUTTON_LON_OFF_DELAY_MS
-#define EXT_BUTTON_LON_DELAY_MS 3000
-#endif
 
-#ifndef EXT_BUTTON_LOFF_DELAY_MS
-#define EXT_BUTTON_LOFF_DELAY_MS 60000
-#endif
 
 #ifndef SENS_HIGH_PEGEL
 #define SENS_HIGH_PEGEL 500
@@ -113,97 +101,29 @@
 #define MD_LON A0
 #define LOFF A1
 #define SENS_CLOCK 12
-#define EXT_BUTTON 11
+
 
 /*
  * IO DATA
  */
-#ifdef HBW_SEC_MDIR_IS_HMW_LC_SW2
-#define CHANNEL_IO_COUNT 4
-#else
-#define CHANNEL_IO_COUNT 2
-#endif
-
 #define MOTION_STATUS_CHANNEL 0
 #define LIGHT_STATUS_CHANNEL 1
-#define STATE_MASK 3
+#define STATE_MASK 1
 
-//#define CHANNEL_IO_BYTES ( CHANNEL_IO_COUNT / 8 )
-#ifdef HBW_SEC_MDIR_IS_HMW_LC_SW2
-#define DEVICE_TYPE 0x11
-#else
 #define DEVICE_TYPE 0x91
-#endif
 
-#if 0
-// Anzahl Tastereingaenge
-#define HMW_CONFIG_NUM_KEYS 2
 
-// Taster
-struct hmw_config_key {
-	byte input_type            :1;   // 0x07:0    0=SWITCH, 1=PUSHBUTTON
-	byte input_locked          :1;   // 0x07:1    0=LOCKED, 1=UNLOCKED
-	byte                       :6;   // 0x07:2-7
-	byte long_press_time;            // 0x08
-};
-
-// Schalter (Aktoren)
-#define HMW_CONFIG_NUM_SWITCHES 2
-
-struct hmw_config_switch {
-	byte logging:1;    // 0x0B:0     0=OFF, 1=ON
-	byte        :7;    // 0x0B:1-7
-	byte        :8;    // 0x0C      // dummy     //TODO: Optimize (?)
-};
-#endif
-
-struct hmw_config {
-#if 0
-	byte logging_time;     // 0x01
-	long central_address;  // 0x02 - 0x05
-	byte direct_link_deactivate:1;   // 0x06:0
-	byte                       :7;   // 0x06:1-7
-    hmw_config_key keys[HMW_CONFIG_NUM_KEYS];  // 0x07 - 0x0A
-    hmw_config_switch switches[HMW_CONFIG_NUM_SWITCHES];  // 0x0B - 0x0E
-#endif
-    byte :8;                          // dummy
-    byte send_delta_temp;             // Temperaturdifferenz, ab der gesendet wird
-    byte :8;
-    unsigned int send_min_interval;   // Minimum-Sendeintervall
-    unsigned int send_max_interval;   // Maximum-Sendeintervall
-    byte address[8];                  // 1-Wire-Adresse
-    byte :8;
-}config;
-
-// Port Status, d.h. Port ist auf 0 oder 1
 byte channelState = 0;
 byte lastState = 0;
 
 
-// Klasse fuer Callbacks vom Protokoll
-class HMWDevice : public HMWDeviceBase {
-  public:
-	void setLevel(byte channel,unsigned int level) {
+void HMWDevice::setLevel(byte channel,unsigned int level) {
 	  // everything in the right limits?
-#ifdef HBW_SEC_MDIR_IS_HMW_LC_SW2
-	  if(channel != 2 && channel != 3) return;
-      if(level > 255) return;
-      if (channel >= CHANNEL_IO_COUNT) return;
-      // now set pin
-
-      if(level == 0xFF) {   // toggle
-    	level =  ( (channelState >> channel) & 0x1 );
-      }
-      else if(level) // on
-    	channelState |= ( HIGH << channel );
-      else
-    	channelState &= ~( HIGH << channel );
-#else
       return;
-#endif
+
 	}
 
-	unsigned int getLevel(byte channel) {
+unsigned int HMWDevice::getLevel(byte channel) {
       // everything in the right limits?
 	  if(channel >= 8) return 0;
 	  // read
@@ -212,32 +132,110 @@ class HMWDevice : public HMWDeviceBase {
 	  else return 0;
 	};
 
-	void readConfig(){
-	   byte* ptr;
-	 // EEPROM lesen
-	   ptr = (byte*)(&config);
-	   for(int address = 0; address < sizeof(config); address++){
-		 *ptr = EEPROM.read(address + 0x01);
-		 ptr++;
-	   };
-	// defaults setzen, falls nicht sowieso klar
+void HMWDevice::setModuleConfig() {
 
+		// read config from EEPROM
+		readConfig();
+
+		pinMode(SENS_CLOCK,OUTPUT);
+		digitalWrite(SENS_CLOCK,LOW);
+
+		pinMode(PROG_BUTTON, INPUT_PULLUP);
+
+		led.setLEDPicture(LED_on);
 	};
 
-};
+void HMWDevice::deviceLoop() {
 
+	if ( mode.stateChanged() )
+	{
+		if (mode.isFactoryReset())
+		{
+			led.setLEDPicture(LED_fast);
+		}else if( mode.isProgMode() )
+		{
+			led.setLEDPicture(LED_slow);
+		}else if( mode.isNormalMode() )
+		{
+			led.setLEDPicture(LED_on);
+		}
+	}
 
-
-void setModuleConfig(HMWDevice* device) {
-
-	// read config from EEPROM
-	device->readConfig();
-
-	pinMode(SENS_CLOCK,OUTPUT);
-	digitalWrite(SENS_CLOCK,LOW);
-
-	pinMode(EXT_BUTTON, INPUT_PULLUP);
+	if (!mode.isNormalMode() )
+	{
+		led.triggerLED();
+	}
 }
+
+void HMWDevice::readConfig()
+{
+	  byte* ptr;
+	  // EEPROM lesen
+	  ptr = (byte*)(&config);
+	  for(uint32_t address = 0; address < sizeof(config); address++){
+		 *ptr = EEPROM.read(address + 0x01);
+		 ptr++;
+	  };
+
+}
+
+void HMWDevice::factoryReset()
+{
+	  // writes FF into config
+	  memset((void*)&config, 0xFF, sizeof(config));
+
+	  memset((void*)LINK_START_IN_EEPROM, 0xFF, sizeof(hbw_sec_mdir_link) * MAX_LINK_ENTRIES);
+}
+
+unsigned long HMWDevice::getCentralAddress()
+{
+	unsigned long result = 0;
+	  for(int address = 2; address < 6; address++){
+		result <<= 8;
+		result |= EEPROM.read(address);
+	  };
+	  return result;
+}
+
+void HMWDevice::getLinkForChannel(hbw_sec_mdir_link *link,uint16_t channel)
+{
+	if (channel < CHANNEL_IO_COUNT)
+	{
+		if (linkReadOffset[channel] >= LINK_START_IN_EEPROM + (MAX_LINK_ENTRIES * sizeof(hbw_sec_mdir_link)))
+		{
+			// End of Read => Reset Pos, Mark empty
+			linkReadOffset[channel] = LINK_START_IN_EEPROM;
+			link->loc_channel = 0xff;
+			link->peer_channel = 0xff;
+			link->address = HMW_TARGET_ADDRESS_BC;
+
+		}else
+		{
+			uint16_t pos = linkReadOffset[channel];
+			uint8_t *dst = (uint8_t *)link;
+
+			while(pos < (linkReadOffset[channel] + sizeof(hbw_sec_mdir_link)) ){
+				*dst = EEPROM.read(pos++);
+				dst++;
+			}
+			if (link->loc_channel == 0xff)
+			{
+				linkReadOffset[channel] = LINK_START_IN_EEPROM;
+			}
+			linkReadOffset[channel] += sizeof(hbw_sec_mdir_link);
+		}
+	}
+}
+
+HMWDevice* hmwdevice = NULL;
+
+void factoryReset() {
+
+	hmwdevice->factoryReset();
+
+}
+
+
 
 #if DEBUG_VERSION == DEBUG_UNO
 SoftwareSerial rs485(RS485_RXD, RS485_TXD); // RX, TX
@@ -248,15 +246,11 @@ HMWRS485 hmwrs485(&Serial, RS485_TXEN);
 HMWRS485 hmwrs485(&Serial, RS485_TXEN);  // keine Debug-Ausgaben
 #endif
 HMWModule* hmwmodule;   // wird in setup initialisiert
-enum lightstate
-{
-	off,
-	on
-};
 
 #define isLightOn() (bitRead(channelState,LIGHT_STATUS_CHANNEL) == 1)
 
-void setLightState(lightstate state)
+
+void HMWDevice::setLightState(lightstate state)
 {
 	if (state == on)
 	{
@@ -270,7 +264,7 @@ void setLightState(lightstate state)
 
 
 }
-void setMDState(bool on)
+void HMWDevice::setMDState(bool on)
 {
 	if (on)
 	{
@@ -284,62 +278,15 @@ void setMDState(bool on)
 
 }
 
-#define EXT_BUTTON_LIGHT_OFF 		0
-#define EXT_BUTTON_WAIT_LIGHT_ON 	1
-#define EXT_BUTTON_LIGHT_ON 		2
-#define EXT_BUTTON_WAIT_LIGHT_OFF 	3
-
-uint8_t button_state = EXT_BUTTON_LIGHT_OFF;
-
-void checkButton(void)
+bool HMWDevice::isProgMode(void)
 {
-	static uint16_t delay;
-
-	switch (button_state)
-	{
-
-	case EXT_BUTTON_WAIT_LIGHT_ON:
-		if (digitalRead(EXT_BUTTON) == LOW)
-		{
-			delay--;
-			if (delay == 0)
-			{
-				setLightState(on);
-				button_state = EXT_BUTTON_LIGHT_ON;
-				hmwdebug("ext button Light on\n");
-			}
-		}
-		break;
-	case EXT_BUTTON_LIGHT_ON:
-		if (digitalRead(EXT_BUTTON) == HIGH)
-		{
-			delay = EXT_BUTTON_LOFF_DELAY_MS / SENSOR_CHECK_INTERVALL_MS;
-			button_state = EXT_BUTTON_WAIT_LIGHT_OFF;
-			hmwdebug("ext button wait Light off\n");
-		}
-		break;
-	case EXT_BUTTON_WAIT_LIGHT_OFF:
-		delay--;
-		if (delay == 0)
-		{
-			setLightState(off);
-			button_state = EXT_BUTTON_LIGHT_OFF;
-			hmwdebug("ext button Light off\n");
-		}
-		break;
-	case EXT_BUTTON_LIGHT_OFF:
-	default:
-		if (digitalRead(EXT_BUTTON) == LOW)
-		{
-			delay = EXT_BUTTON_LON_DELAY_MS / SENSOR_CHECK_INTERVALL_MS;
-			button_state = EXT_BUTTON_WAIT_LIGHT_ON;
-			hmwdebug("ext button wait Light on\n");
-		}
-		break;
-	}
+	return mode.isProgMode();
 }
-
-void checkSensor(void)
+void HMWDevice::triggerStatusLED()
+{
+	led.triggerLED();
+}
+void HMWDevice::checkSensor(void)
 {
 	static uint8_t md_lon_count = 0;
 	static uint8_t loff_count = 0;
@@ -363,7 +310,7 @@ void checkSensor(void)
 	      }
 	      md_lon_count = 0;
 	}
-
+#ifdef USE_LIGHT_OFF
 	/*Prüfe auf Impuls von ADC1 (Aus) */
 	tempVal = analogRead(LOFF);
 	if(tempVal > SENS_HIGH_PEGEL)
@@ -376,7 +323,7 @@ void checkSensor(void)
 
 	    loff_count = 0;
 	}
-
+#endif
 	/*Signal Bewegung */
 	if( md_count > 0)
 	{     setMDState(true);
@@ -395,10 +342,15 @@ void checkSensor(void)
 	}
 
 }
-void timerLoop(void)
+void HMWDevice::timerLoop(void)
 {
 	checkSensor();
-	checkButton();
+	//checkButton();
+}
+
+void timerLoop(void)
+{
+	hmwdevice->timerLoop();
 }
 //The setup function is called once at startup of the sketch
 void setup()
@@ -415,8 +367,6 @@ void setup()
 	pinMode(RS485_TXEN, OUTPUT);
 	digitalWrite(RS485_TXEN, LOW);
 
-	pinMode(LED, OUTPUT);
-
 	#if DEBUG_VERSION == DEBUG_UNO
 	   hmwdebugstream = &Serial;
 	   Serial.begin(19200);
@@ -430,16 +380,11 @@ void setup()
 	   Serial.begin(19200, SERIAL_8E1);
 	#endif
 
-	// TODO change device type to own type, use HMW-LC-SW2-DR to work with fhem
-	// device type: 0x11 = HMW-LC-Sw2-DR
-	// serial number
-	// address
-	// TODO: serial number und address sollte von woanders kommen
-    HMWDevice* hmwdevice = new HMWDevice();
+	hmwdevice = new HMWDevice();
 	hmwmodule = new HMWModule(hmwdevice, &hmwrs485, DEVICE_TYPE);
 
 	// config aus EEPROM lesen
-	setModuleConfig(hmwdevice);
+	hmwdevice->setModuleConfig();
 
 	hmwdebug("huhu\n");
 
@@ -451,60 +396,55 @@ void setup()
 // The loop function is called in an endless loop
 void loop()
 {
+
    static byte keyPressNum[] = {0,0};
-// Daten empfangen (tut nichts, wenn keine Daten vorhanden)
-   hmwrs485.receive();
- // Check
-   if(hmwrs485.frameComplete) {
-      if(hmwrs485.targetAddress == hmwrs485.txSenderAddress || hmwrs485.targetAddress == 0xFFFFFFFF){
-        hmwrs485.parseFrame();
-        hmwmodule->processEvents();
-      }
-   };
+   // Check
+   hmwrs485.loop();
 
-
-   if (lastState != (channelState & STATE_MASK) )
+   hmwdevice->deviceLoop();
+   if (!hmwdevice->isProgMode())
    {
-	   hmwdebug("LastState");
-	   hmwdebug(channelState);
-	   hmwdebug("\n");
-	   if ( bitRead(lastState,LIGHT_STATUS_CHANNEL) != bitRead(channelState,LIGHT_STATUS_CHANNEL))
-       {
-		   hmwdebug("change LightState");
-		   hmwdebug(bitRead(channelState,LIGHT_STATUS_CHANNEL));
-		   hmwdebug("\n");
-		   // TODO: muss das eigentlich an die Zentrale gehen?
-#ifdef HBW_SEC_MDIR_IS_HMW_LC_SW2
-		   hmwmodule->broadcastKeyEvent(LIGHT_STATUS_CHANNEL,keyPressNum[LIGHT_STATUS_CHANNEL]);
-#else
-		   hmwmodule->broadcastInfoMessage(LIGHT_STATUS_CHANNEL,bitRead(channelState,LIGHT_STATUS_CHANNEL));
-#endif
-		   // gleich ein Announce hinterher
-		   // TODO: Vielleicht gehoert das in den allgemeinen Teil
-		   hmwmodule->broadcastAnnounce(LIGHT_STATUS_CHANNEL);
+	   if (bitRead(channelState,LIGHT_STATUS_CHANNEL) == 1)
+	   {
+		   hmwdebug("sending Light On\n");
+		   hbw_sec_mdir_link link;
+		   do{
 
-		   keyPressNum[LIGHT_STATUS_CHANNEL]++;
-       }
+			   hmwdevice->getLinkForChannel(&link,LIGHT_STATUS_CHANNEL);
+			   if (link.loc_channel != 0xff)
+			   {
+				   hmwmodule->sendKeyEvent(LIGHT_STATUS_CHANNEL,keyPressNum[LIGHT_STATUS_CHANNEL],link.address,link.peer_channel);
+			   }else
+			   {
+				   hmwmodule->sendKeyEvent(LIGHT_STATUS_CHANNEL,keyPressNum[LIGHT_STATUS_CHANNEL],(unsigned long)HMW_TARGET_ADDRESS_BC,0);
+			   }
+		   }while (link.loc_channel != 0xff);
+	   	   // gleich ein Announce hinterher
+	   	   // TODO: Vielleicht gehoert das in den allgemeinen Teil
+	   	   hmwmodule->broadcastAnnounce(LIGHT_STATUS_CHANNEL);
+
+	   	   keyPressNum[LIGHT_STATUS_CHANNEL]++;
+
+	   	   bitClear(channelState,LIGHT_STATUS_CHANNEL);
+	   }
 
 	   if ( bitRead(lastState,MOTION_STATUS_CHANNEL) != bitRead(channelState,MOTION_STATUS_CHANNEL))
 	   {
-		   hmwdebug("change MotionState\n");
-		   hmwdebug(bitRead(channelState,MOTION_STATUS_CHANNEL));
-		   hmwdebug("\n");
-	       // TODO: muss das eigentlich an die Zentrale gehen?
-#ifdef HBW_SEC_MDIR_IS_HMW_LC_SW2
-		   hmwmodule->broadcastKeyEvent(MOTION_STATUS_CHANNEL,keyPressNum[MOTION_STATUS_CHANNEL]);
-#else
-		   hmwmodule->broadcastInfoMessage(MOTION_STATUS_CHANNEL,bitRead(channelState,MOTION_STATUS_CHANNEL));
-#endif
-		   // gleich ein Announce hinterher
-	       // TODO: Vielleicht gehoert das in den allgemeinen Teil
-	      hmwmodule->broadcastAnnounce(MOTION_STATUS_CHANNEL);
+			   hmwdebug("change MotionState\n");
+			   hmwdebug(bitRead(channelState,MOTION_STATUS_CHANNEL));
+			   hmwdebug("\n");
+			   // TODO: InfoMessage oder KeyEvent?
+			   hmwmodule->sendInfoMessage(MOTION_STATUS_CHANNEL,bitRead(channelState,MOTION_STATUS_CHANNEL),HMW_TARGET_ADDRESS_BC);
+			   // gleich ein Announce hinterher
+			   // TODO: Vielleicht gehoert das in den allgemeinen Teil
+			   hmwmodule->broadcastAnnounce(MOTION_STATUS_CHANNEL);
 
-	      keyPressNum[MOTION_STATUS_CHANNEL]++;
+			   keyPressNum[MOTION_STATUS_CHANNEL]++;
+		}
+
+	   lastState = channelState;
 	   }
-	   lastState = channelState & STATE_MASK;
-   }
+
 
 }
 
