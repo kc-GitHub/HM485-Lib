@@ -106,9 +106,9 @@
 /*
  * IO DATA
  */
-#define MOTION_STATUS_CHANNEL 0
+#define MOTION_STATUS_CHANNEL 2
 #define LIGHT_STATUS_CHANNEL 1
-#define STATE_MASK 1
+
 
 #define DEVICE_TYPE 0x91
 
@@ -116,7 +116,10 @@
 byte channelState = 0;
 byte lastState = 0;
 
-
+HMWDevice::HMWDevice()
+{
+	//mode.setIFactoryReset(this);
+}
 void HMWDevice::setLevel(byte channel,unsigned int level) {
 	  // everything in the right limits?
       return;
@@ -142,8 +145,7 @@ void HMWDevice::setModuleConfig() {
 
 		pinMode(PROG_BUTTON, INPUT_PULLUP);
 
-		led.setLEDPicture(LED_on);
-	};
+};
 
 void HMWDevice::deviceLoop() {
 
@@ -151,20 +153,17 @@ void HMWDevice::deviceLoop() {
 	{
 		if (mode.isFactoryReset())
 		{
-			led.setLEDPicture(LED_fast);
+			factoryReset();
 		}else if( mode.isProgMode() )
 		{
-			led.setLEDPicture(LED_slow);
+
 		}else if( mode.isNormalMode() )
 		{
-			led.setLEDPicture(LED_on);
+
 		}
 	}
 
-	if (!mode.isNormalMode() )
-	{
-		led.triggerLED();
-	}
+
 }
 
 void HMWDevice::readConfig()
@@ -196,35 +195,70 @@ unsigned long HMWDevice::getCentralAddress()
 	  };
 	  return result;
 }
-
-void HMWDevice::getLinkForChannel(hbw_sec_mdir_link *link,uint16_t channel)
+bool HMWDevice::hasMoreLinkForChannel(uint16_t channel)
 {
+	bool retVal = true;
+
+	if ( linkReadOffset[channel] >= LINK_START_IN_EEPROM + (MAX_LINK_ENTRIES * sizeof(hbw_sec_mdir_link) ))
+	{
+		linkReadOffset[channel] = LINK_START_IN_EEPROM;
+		retVal = false;
+	}
+
+	return retVal;
+}
+bool HMWDevice::getLinkForChannel(hbw_sec_mdir_link *link,uint16_t channel)
+{
+	bool retVal = false;
+
 	if (channel < CHANNEL_IO_COUNT)
 	{
-		if (linkReadOffset[channel] >= LINK_START_IN_EEPROM + (MAX_LINK_ENTRIES * sizeof(hbw_sec_mdir_link)))
-		{
-			// End of Read => Reset Pos, Mark empty
-			linkReadOffset[channel] = LINK_START_IN_EEPROM;
-			link->loc_channel = 0xff;
-			link->peer_channel = 0xff;
-			link->address = HMW_TARGET_ADDRESS_BC;
+		link->loc_channel = 0xff;
+		link->peer_channel = 0xff;
+		link->address = HMW_TARGET_ADDRESS_BC;
 
-		}else
+		if (hasMoreLinkForChannel(channel))
 		{
+			// Read next entries
 			uint16_t pos = linkReadOffset[channel];
-			uint8_t *dst = (uint8_t *)link;
+			uint8_t *dst = (uint8_t *) &link->address;
 
-			while(pos < (linkReadOffset[channel] + sizeof(hbw_sec_mdir_link)) ){
-				*dst = EEPROM.read(pos++);
-				dst++;
-			}
+			hmwdebug("Reading from EEPROM\n");
+			hmwdebug(" pos ");
+			hmwdebug(pos, HEX);
+			link->loc_channel = EEPROM.read(pos);
+			hmwdebug(" channel ");
+			hmwdebug(link->loc_channel, HEX);
+			hmwdebug("\n");
+			pos++;
+
 			if (link->loc_channel == 0xff)
 			{
 				linkReadOffset[channel] = LINK_START_IN_EEPROM;
+			}else
+			{
+				if (link->loc_channel == channel)
+				{
+
+					for (int idx = 3 ;idx >= 0 ; idx--)
+					{
+						*dst = EEPROM.read(pos + idx);
+						dst++;
+
+					}
+					pos += 4;
+
+					link->peer_channel = EEPROM.read(pos);
+					pos++;
+
+					retVal = true;
+				}
+				linkReadOffset[channel] += sizeof(hbw_sec_mdir_link);
+
 			}
-			linkReadOffset[channel] += sizeof(hbw_sec_mdir_link);
 		}
 	}
+	return retVal;
 }
 
 HMWDevice* hmwdevice = NULL;
@@ -282,14 +316,13 @@ bool HMWDevice::isProgMode(void)
 {
 	return mode.isProgMode();
 }
-void HMWDevice::triggerStatusLED()
-{
-	led.triggerLED();
-}
+
 void HMWDevice::checkSensor(void)
 {
 	static uint8_t md_lon_count = 0;
+#ifdef USE_LIGHT_OFF
 	static uint8_t loff_count = 0;
+#endif
 	static uint16_t md_count;
 
 	/*Prüfe auf Impuls von ADC0 (Ein, Bewegung) */
@@ -397,54 +430,64 @@ void setup()
 void loop()
 {
 
-   static byte keyPressNum[] = {0,0};
-   // Check
-   hmwrs485.loop();
+	static byte keyPressNum[] = {0,0};
+	// Check
+	hmwrs485.loop();
 
-   hmwdevice->deviceLoop();
-   if (!hmwdevice->isProgMode())
-   {
-	   if (bitRead(channelState,LIGHT_STATUS_CHANNEL) == 1)
-	   {
-		   hmwdebug("sending Light On\n");
-		   hbw_sec_mdir_link link;
-		   do{
-
-			   hmwdevice->getLinkForChannel(&link,LIGHT_STATUS_CHANNEL);
-			   if (link.loc_channel != 0xff)
-			   {
-				   hmwmodule->sendKeyEvent(LIGHT_STATUS_CHANNEL,keyPressNum[LIGHT_STATUS_CHANNEL],link.address,link.peer_channel);
-			   }else
-			   {
-				   hmwmodule->sendKeyEvent(LIGHT_STATUS_CHANNEL,keyPressNum[LIGHT_STATUS_CHANNEL],(unsigned long)HMW_TARGET_ADDRESS_BC,0);
-			   }
-		   }while (link.loc_channel != 0xff);
-	   	   // gleich ein Announce hinterher
-	   	   // TODO: Vielleicht gehoert das in den allgemeinen Teil
-	   	   hmwmodule->broadcastAnnounce(LIGHT_STATUS_CHANNEL);
-
-	   	   keyPressNum[LIGHT_STATUS_CHANNEL]++;
-
-	   	   bitClear(channelState,LIGHT_STATUS_CHANNEL);
-	   }
-
-	   if ( bitRead(lastState,MOTION_STATUS_CHANNEL) != bitRead(channelState,MOTION_STATUS_CHANNEL))
-	   {
-			   hmwdebug("change MotionState\n");
-			   hmwdebug(bitRead(channelState,MOTION_STATUS_CHANNEL));
-			   hmwdebug("\n");
-			   // TODO: InfoMessage oder KeyEvent?
-			   hmwmodule->sendInfoMessage(MOTION_STATUS_CHANNEL,bitRead(channelState,MOTION_STATUS_CHANNEL),HMW_TARGET_ADDRESS_BC);
-			   // gleich ein Announce hinterher
-			   // TODO: Vielleicht gehoert das in den allgemeinen Teil
-			   hmwmodule->broadcastAnnounce(MOTION_STATUS_CHANNEL);
-
-			   keyPressNum[MOTION_STATUS_CHANNEL]++;
+	hmwdevice->deviceLoop();
+	if (!hmwdevice->isProgMode())
+	{
+		if (bitRead(channelState,LIGHT_STATUS_CHANNEL) == 1)
+		{
+			if (hmwdevice->hasMoreLinkForChannel(LIGHT_STATUS_CHANNEL))
+			{
+				hbw_sec_mdir_link link;
+				if( hmwdevice->getLinkForChannel(&link,LIGHT_STATUS_CHANNEL) )
+				{
+					hmwdebug("Sending Light On to ");
+					hmwdebug(link.loc_channel, HEX);
+					hmwdebug(link.address, HEX);
+					hmwdebug(link.peer_channel, HEX);
+					hmwdebug("\n");
+					hmwmodule->sendKeyEvent( (byte) LIGHT_STATUS_CHANNEL,keyPressNum[LIGHT_STATUS_CHANNEL],byte(0),link.address,link.peer_channel);
+				}else
+				{
+					//hmwmodule->sendKeyEvent( (byte) LIGHT_STATUS_CHANNEL,keyPressNum[LIGHT_STATUS_CHANNEL],byte(0),(unsigned long)HMW_TARGET_ADDRESS_BC,byte(0));
+					bitClear(channelState,LIGHT_STATUS_CHANNEL);
+					// gleich ein Announce hinterher
+					// TODO: Vielleicht gehoert das in den allgemeinen Teil
+					hmwmodule->broadcastAnnounce(LIGHT_STATUS_CHANNEL);
+				}
+				keyPressNum[LIGHT_STATUS_CHANNEL]++;
+			}else
+			{
+				//hmwmodule->sendKeyEvent( (byte) LIGHT_STATUS_CHANNEL,keyPressNum[LIGHT_STATUS_CHANNEL],byte(0),(unsigned long)HMW_TARGET_ADDRESS_BC,byte(0));
+				bitClear(channelState,LIGHT_STATUS_CHANNEL);
+				// gleich ein Announce hinterher
+				// TODO: Vielleicht gehoert das in den allgemeinen Teil
+				hmwmodule->broadcastAnnounce(LIGHT_STATUS_CHANNEL);
+			}
 		}
 
-	   lastState = channelState;
-	   }
+		if ( bitRead(lastState,MOTION_STATUS_CHANNEL) != bitRead(channelState,MOTION_STATUS_CHANNEL))
+		{
+			hmwdebug("change MotionState\n");
+			hmwdebug(bitRead(channelState,MOTION_STATUS_CHANNEL));
+			hmwdebug("\n");
+			// TODO: InfoMessage oder KeyEvent?
+			hmwmodule->sendInfoMessage(MOTION_STATUS_CHANNEL,bitRead(channelState,MOTION_STATUS_CHANNEL),HMW_TARGET_ADDRESS_BC);
+			// gleich ein Announce hinterher
+			// TODO: Vielleicht gehoert das in den allgemeinen Teil
+			hmwmodule->broadcastAnnounce(MOTION_STATUS_CHANNEL);
 
+			keyPressNum[MOTION_STATUS_CHANNEL]++;
+		}
+
+		lastState = channelState;
+	}else
+	{
+		hmwdebug("ProgMode On\n");
+	}
 
 }
 

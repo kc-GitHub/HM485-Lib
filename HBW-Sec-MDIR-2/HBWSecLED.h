@@ -43,7 +43,10 @@ public:
 	void setLEDPicture(LEDPicture);
 
 private:
+	void setLEDOutput(bool LEDon);
+
 	LEDPicture LEDpicture;
+	unsigned long changedTime;
 	bool on;
 };
 

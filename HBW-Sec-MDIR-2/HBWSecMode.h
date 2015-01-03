@@ -24,16 +24,20 @@
 #ifndef HBWSecMode_H_
 #define HBWSecMode_H_
 
+#include "HBWSecLED.h"
+
+#include "stddef.h"
+
 #ifndef PROG_BUTTON_FACTORY_RESET_DELAY_MS
-#define PROG_BUTTON_FACTORY_RESET_DELAY_MS	6000
+#define PROG_BUTTON_FACTORY_RESET_DELAY_MS	6000UL
 #endif
 
 #ifndef PROG_BUTTON_MODE_ON_DELAY_MS
-#define PROG_BUTTON_MODE_ON_DELAY_MS 		3000
+#define PROG_BUTTON_MODE_ON_DELAY_MS 		3000UL
 #endif
 
 #ifndef PROG_BUTTON_MODE_OFF_DELAY_MS
-#define PROG_BUTTON_MODE_OFF_DELAY_MS 		20000
+#define PROG_BUTTON_MODE_OFF_DELAY_MS 		20000UL
 #endif
 
 #define PROG_BUTTON 11
@@ -44,16 +48,26 @@ public:
 	virtual ~HBWSecMode();
 
 	bool stateChanged();
-	bool isProgMode() {return mode = Mode_Prog;};
-	bool isFactoryReset() {return mode = Mode_Fact;};
-	bool isNormalMode() {return mode = Mode_Normal;};
+	bool isProgMode() {return prog_mode == PROG_MODE_ON;};
+	bool isFactoryReset() {return prog_mode == PROG_MODE_FACTORY_RESET;};
+	bool isNormalMode() {return prog_mode == PROG_MODE_OFF;};
 private:
+	void checkProgButton();
+	bool progButtonPressed;
+
+	HBWSecLED led;
+
 	enum mode
 	{
-		Mode_Normal,
-		Mode_Prog,
-		Mode_Fact
-	}mode;
+		PROG_MODE_OFF							= 0,
+		PROG_MODE_WAIT_RELEASE_BUTTON			= 1,
+		PROG_MODE_ON_WAIT_RELEAESE_BUTTON		= 2,
+		PROG_MODE_ON							= 3,
+		PROG_MODE_FACTORY_RESET_WAIT_RELEASE 	= 4,
+		PROG_MODE_FACTORY_RESET_WAIT_PRESS_AGAIN= 5,
+		PROG_MODE_FACTORY_RESET_WAIT_ACK 		= 6,
+		PROG_MODE_FACTORY_RESET 				= 7
+	}prog_mode;
 
 };
 

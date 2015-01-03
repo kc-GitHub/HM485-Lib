@@ -8,7 +8,6 @@
 #define _HMWHomebrew_H_
 #include "Arduino.h"
 //add your includes for the project HMWHomebrew here
-#include "HBWSecLED.h"
 #include "HBWSecMode.h"
 
 //end of add your includes here
@@ -42,6 +41,8 @@ enum lightstate
 //add your function definitions for the project HMWHomebrew here
 class HMWDevice : public HMWDeviceBase {
   public:
+	HMWDevice();
+	virtual ~HMWDevice() {};
 	void setLevel(byte channel,unsigned int level);
 	unsigned int getLevel(byte channel);
 	void readConfig();
@@ -49,13 +50,13 @@ class HMWDevice : public HMWDeviceBase {
 	void deviceLoop();
 	void factoryReset();
 	unsigned long getCentralAddress();
-	void getLinkForChannel(hbw_sec_mdir_link *link,uint16_t channel);
+	bool getLinkForChannel(hbw_sec_mdir_link *link,uint16_t channel);
+	bool hasMoreLinkForChannel(uint16_t channel);
 	void timerLoop(void);
 	bool isProgMode(void);
   private:
 	void setLightState(lightstate state);
 	void setMDState(bool on);
-	void triggerStatusLED();
 	void checkSensor(void);
 	struct hbw_sec_mdir_ch_config
 		{
@@ -73,7 +74,7 @@ class HMWDevice : public HMWDeviceBase {
 
 		uint16_t linkReadOffset[CHANNEL_IO_COUNT] = {LINK_START_IN_EEPROM,LINK_START_IN_EEPROM};
 
-	HBWSecLED led;
+
 	HBWSecMode mode;
 };
 

@@ -41,12 +41,48 @@ void HBWSecLED::triggerLED()
 	switch (LEDpicture)
 	{
 		case LED_fast:
+			if (millis() - changedTime >= 500)
+			{
+				if (on)
+				{
+					setLEDOutput(false);
+				}else
+				{
+					setLEDOutput(true);
+				}
+			}
 			break;
 		case LED_slow:
+			if (millis() - changedTime >= 1000)
+			{
+				if (on)
+				{
+					setLEDOutput(false);
+				}else
+				{
+					setLEDOutput(true);
+				}
+			}
 			break;
 		default:
 			break;
 	}
+}
+void HBWSecLED::setLEDOutput(bool LEDon)
+{
+	if (LEDon)
+	{
+		digitalWrite(LED,HIGH);
+
+	}else
+	{
+		digitalWrite(LED,LOW);
+
+	}
+
+	on = LEDon;
+	changedTime = millis();
+
 }
 void HBWSecLED::setLEDPicture(LEDPicture pic)
 {
@@ -55,10 +91,12 @@ void HBWSecLED::setLEDPicture(LEDPicture pic)
 	switch (pic)
 	{
 	case LED_on:
-		digitalWrite(LED,HIGH);
+		setLEDOutput(true);
 		break;
+	case LED_fast:
+	case LED_slow:
 	case LED_off:
-		digitalWrite(LED,LOW);
+		setLEDOutput(false);
 		break;
 
 	}

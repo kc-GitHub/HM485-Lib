@@ -21,80 +21,148 @@
  * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  */
 
-#include <HBWSecMode.h>
+#include "HBWSecMode.h"
+
+#include "HMWDebug.h"
 
 HBWSecMode::HBWSecMode() {
 	// TODO Auto-generated constructor stub
-	mode = Mode_Normal;
+	prog_mode = PROG_MODE_OFF;
+	progButtonPressed = false;
+	led.setLEDPicture(LED_on);
 }
 
 HBWSecMode::~HBWSecMode() {
 	// TODO Auto-generated destructor stub
 }
-#define PROG_MODE_OFF 					0
-#define PROG_MODE_FACTORY_RESET	    	3
-#define PROG_MODE_ON 					2
-#define PROG_MODE_WAIT_RELEASE_BUTTON 	1
 
-#define isProgModeActive() prog_mode >= PROG_MODE_ON
-uint8_t prog_mode = PROG_MODE_OFF;
+void HBWSecMode::checkProgButton()
+{
+	static unsigned long lastChangeTime=0;
+	if (progButtonPressed != !digitalRead(PROG_BUTTON) )
+	{
+		if (lastChangeTime == 0)
+		{
+			lastChangeTime = millis();
+		}
+
+		if (millis() - lastChangeTime >= 100)
+		{
+			lastChangeTime = 0;
+			progButtonPressed = !digitalRead(PROG_BUTTON);
+		}
+
+	}
+
+}
 
 bool HBWSecMode::stateChanged()
 {
-//#ifdef ENABLE_PROG_MODE
-	static long lasTime;
+	static unsigned long lasTime;
 
-	long now = millis();
-	bool buttonPressed = !digitalRead(PROG_BUTTON);
+	unsigned long now = millis();
+	uint8_t old_mode = prog_mode;
+
+	checkProgButton();
 
 	switch (prog_mode)
 	{
-
-	case PROG_MODE_WAIT_RELEASE_BUTTON:
-		if (!buttonPressed)
+	case PROG_MODE_FACTORY_RESET:
+		// Called in next loop after ACK
+		prog_mode = PROG_MODE_OFF;
+		hmwdebug("prog mode off \n");
+		break;
+	case PROG_MODE_FACTORY_RESET_WAIT_ACK:
+		if (!progButtonPressed)
 		{
-			if (now - lasTime > PROG_BUTTON_FACTORY_RESET_DELAY_MS)
+			if (now - lasTime > PROG_BUTTON_MODE_ON_DELAY_MS)
 			{
 				// Factory Reset enabled
 				prog_mode = PROG_MODE_FACTORY_RESET;
-				hmwdebug("prog mode factory reset\n");
+				hmwdebug("Reset to Factory \n");
 
+			}else
+			{
+				led.setLEDPicture(LED_on);
+				prog_mode = PROG_MODE_OFF;
+				hmwdebug("Reset to Factory canceled\n");
 			}
-#ifdef ENABLE_PROG_MODE
-			else if (now - lasTime > PROG_BUTTON_MODE_ON_DELAY_MS)
+		}
+
+		break;
+	case PROG_MODE_FACTORY_RESET_WAIT_PRESS_AGAIN:
+		if (progButtonPressed)
+		{
+			prog_mode = PROG_MODE_FACTORY_RESET_WAIT_ACK;
+			hmwdebug("Prog mode factory reset wait ack \n");
+			lasTime = now;
+		}else if (now -lasTime >= PROG_BUTTON_MODE_OFF_DELAY_MS)
+		{
+			led.setLEDPicture(LED_on);
+			prog_mode = PROG_MODE_OFF;
+			hmwdebug("Exit Progmode after timeout\n");
+		}
+		break;
+	case PROG_MODE_FACTORY_RESET_WAIT_RELEASE:
+		if (!progButtonPressed)
+		{
+			prog_mode = PROG_MODE_FACTORY_RESET_WAIT_PRESS_AGAIN;
+			hmwdebug("Prog mode factory reset wait press again \n");
+		}else if (now -lasTime >= PROG_BUTTON_MODE_OFF_DELAY_MS)
+		{
+			led.setLEDPicture(LED_on);
+			prog_mode = PROG_MODE_OFF;
+			hmwdebug("Exit Progmode after timeout\n");
+		}
+		break;
+	case PROG_MODE_WAIT_RELEASE_BUTTON:
+		if (progButtonPressed)
+		{
+			if (now - lasTime > PROG_BUTTON_MODE_ON_DELAY_MS)
 			{
 				// Prog enabled
-				prog_mode = PROG_MODE_ON;
-				hmwdebug("prog mode on\n");
-			}
-#endif
-			else if (now - lasTime > 100)
-			{
-				// Prog Mode Canceled
-				prog_mode = PROG_MODE_OFF;
-				hmwdebug("prog mode off \n");
+				prog_mode = PROG_MODE_ON_WAIT_RELEAESE_BUTTON;
+				hmwdebug("prog mode on wait release button\n");
 			}
 
+		}else
+		{
+			prog_mode = PROG_MODE_OFF;
+			hmwdebug("Prog mode off\n");
+		}
+		break;
+
+	case PROG_MODE_ON_WAIT_RELEAESE_BUTTON:
+		if (progButtonPressed)
+		{
+			if (now - lasTime > PROG_BUTTON_FACTORY_RESET_DELAY_MS)
+			{
+				// Prog enabled
+				prog_mode = PROG_MODE_FACTORY_RESET_WAIT_RELEASE;
+				hmwdebug("prog mode factory reset wait release\n");
+				led.setLEDPicture(LED_fast);
+			}
+
+		}else
+		{
+			prog_mode = PROG_MODE_ON;
+			hmwdebug("Prog mode on\n");
 		}
 		break;
 	case PROG_MODE_ON:
-	case PROG_MODE_FACTORY_RESET:
 		if (now -lasTime >= PROG_BUTTON_MODE_OFF_DELAY_MS)
 		{
+			led.setLEDPicture(LED_on);
 			prog_mode = PROG_MODE_OFF;
-			hmwdebug("prog Mode off\n");
-		}else if (buttonPressed)
-		{
-			prog_mode = PROG_MODE_OFF;
-			hmwdebug("prog Mode off\n");
-			mode = Mode_Fact;
+			hmwdebug("Exit Progmode after timeout\n");
 		}
-
 		break;
+
 	case PROG_MODE_OFF:
 	default:
-		if (buttonPressed)
+		if (progButtonPressed)
 		{
+			led.setLEDPicture(LED_slow);
 			lasTime = now;
 			prog_mode = PROG_MODE_WAIT_RELEASE_BUTTON;
 			hmwdebug("Prog Mode Wait Release Button\n");
@@ -102,5 +170,11 @@ bool HBWSecMode::stateChanged()
 
 		break;
 	}
-//#endif
+
+	led.triggerLED();
+
+	if (prog_mode != old_mode)
+		return true;
+	else
+		return false;
 }
