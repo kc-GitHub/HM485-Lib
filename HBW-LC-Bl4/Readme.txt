@@ -13,7 +13,7 @@ Aktuell implementierte Befehle:
 0xC9 = Stop
 0xFF = Toggle
 
-Damit FHEM das Homebrew-Device richtig erkennt, muss die HBW-LC-Bl4.pm Datei in den Ordner \FHEM\lib\HM485\Devices kopiert werden.
+Damit FHEM das Homebrew-Device richtig erkennt, muss die HBW-LC-Bl4.pm Datei in den Ordner \FHEM\lib\HM485\Devices kopiert werden (Das Device gibt sich als HW-Typ 0x82 aus).
 Config der Fahrzeiten (hoch/runter/Richtungswechsel der Lamellen) kann über das FHEM-Webfrontend vorgenommen werden. In dem Modul Device.pm kann es dabei noch zu einer fehlerhaften Berechnung der EEPROM-Adressen kommen.
 Abhilfe schafft die beigefügte Datei Device.pm mit der die original Datei ersetzt werden muss.
 
@@ -33,3 +33,13 @@ A4 - Ansteuerung des 5. Relais (Kanal 3 ein/aus)
 A5 - Ansteuerung des 6. Relais (Kanal 3 Richtung)
 3  - Ansteuerung des 7. Relais (Kanal 4 ein/aus)
 7  - Ansteuerung des 8. Relais (Kanal 4 Richtung)
+
+
+Beispielconfig:
+Um ein Raffstore mit nur einer Taste zu steuern, kann z.B. das folgende define verwendet werden:
+
+define blindToggle notify HMW_LC_Bl1_DR_HBW0140913_01 { fhem "set HM485_LAN RAW 01234567 98 00000001 7802FF" }
+
+Hierbei steht "HMW_LC_Bl1_DR_HBW0140913" für den Client, an den der Taster angeschlossen ist und "_01" für den Kanal des Tasters.
+01234567 ist die Geräteadresse des Moduls für die Raffstore-Steuerung
+Die "02" in "7802FF" gibt an, dass der 2. Raffstore-Kanal gesteuert werden soll.
