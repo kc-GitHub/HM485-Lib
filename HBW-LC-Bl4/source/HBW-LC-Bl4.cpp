@@ -301,7 +301,7 @@ class HMWDevice : public HMWDeviceBase {
 
 
 
-	unsigned int getLevel(byte channel) {
+	byte getLevel(byte channel) {
 
 		//return blindPositionRequested[channel];
 		getCurrentPosition(channel);
@@ -497,7 +497,7 @@ void debugStateChange(byte state, byte channel) {
 void handleBlind() {
 
 	now = millis();
-	for (byte channel = 0; channel < 1; channel++) {
+	for (byte channel = 0; channel < 4; channel++) {
 //  for (byte channel = 0; channel < 4; channel++) {
 
 		if ((blindForceNextState[channel] == true) || (now >= blindTimeNextState[channel])) {
@@ -604,7 +604,7 @@ void handleBlind() {
 
 				if (blindSearchingForRefPosition[channel] == true) {
 					hmwdebug("Reference position reached. Moving to target position now.\n");
-					hmwdevice.setLevel(channel, blindPositionRequestedSave[channel]*2);
+					hmwdevice.setLevel(channel, blindPositionRequestedSave[channel] * 2);
 					blindSearchingForRefPosition[channel] = false;
 				}
 

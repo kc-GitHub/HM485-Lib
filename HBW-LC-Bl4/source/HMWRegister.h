@@ -17,13 +17,13 @@
 #define HMW_CONFIG_NUM_BLINDS 4
 
 struct hmw_config_blind {
-	byte logging:1;    			   // 0x07:0    0x0E	0x15	0x1C
-	byte        :7;   			   // 0x07:1-7	0x0E
+	byte logging:1;    			  		    // 0x07:0   0x0E	0x15	0x1C
+	byte        :7;   			            // 0x07:1-7	0x0E
 	unsigned char blindTimeChangeOver;      // 0x08		0x0F	0x16	0x1D
 	unsigned char blindReferenceRunCounter; // 0x09		0x10	0x17	0x1E
-	unsigned char blindTimeBottomTop_low;   // 0x0A;		0x11	0x18	0x1F
+	unsigned char blindTimeBottomTop_low;   // 0x0A;	0x11	0x18	0x1F
 	unsigned char blindTimeBottomTop_high;  // 0x0B;
-	unsigned char blindTimeTopBottom_low;   // 0x0C;		0x13	0x1A	0x21
+	unsigned char blindTimeTopBottom_low;   // 0x0C;	0x13	0x1A	0x21
 	unsigned char blindTimeTopBottom_high;  // 0x0D;
 };
 

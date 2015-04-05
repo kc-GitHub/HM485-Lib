@@ -153,8 +153,9 @@ void HMWModule::processEvent(byte const * const frameData, byte frameDataLength,
             hmwrs485->txFrameData[1] = MODULE_FIRMWARE_VERSION & 0xFF;
             hmwrs485->txFrameDataLength = 2;
             break;
-         case 'x':                                                               // Level set
-            processEventSetLevel(frameData[1], frameData[2]);                                               // Install-Test TODO: ???
+         case 'x':
+        	 // Level set
+            processEventSetLevel(frameData[1], frameData[2]);    // ((frameData[2] << 8) | frameData[3]));   // Install-Test TODO: ???
             sendAck = 2;
             break;
 
@@ -190,18 +191,22 @@ void HMWModule::processEvent(byte const * const frameData, byte frameDataLength,
 	 // tell the hardware
      device->setLevel(channel, level);
      // get what the hardware did and send it back
-     processEventGetLevel(channel);
+     hmwrs485->txFrameDataLength = 0x03;      // Length
+	 hmwrs485->txFrameData[0] = 0x69;         // 'i'
+	 hmwrs485->txFrameData[1] = channel;      // Sensornummer
+	 hmwrs485->txFrameData[2] = level & 0xFF;
+     // processEventGetLevel(channel);
    };
 
 
    void HMWModule::processEventGetLevel(byte channel){
 	 // get value from the hardware and send it back
-	 hmwrs485->txFrameDataLength = 0x04;      // Length
+     hmwrs485->txFrameDataLength = 0x03;      // Length
 	 hmwrs485->txFrameData[0] = 0x69;         // 'i'
 	 hmwrs485->txFrameData[1] = channel;      // Sensornummer
-	 unsigned int info = device->getLevel(channel);
-	 hmwrs485->txFrameData[2] = info / 0x100;
-	 hmwrs485->txFrameData[3] = info & 0xFF;
+	 byte info = (device->getLevel(channel)) * 2;  // * 200;
+	 hmwrs485->txFrameData[2] = info; // / 0x100;
+//	 hmwrs485->txFrameData[3] = info & 0xFF;
    };
 
 

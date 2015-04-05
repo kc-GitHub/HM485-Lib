@@ -1,540 +1,606 @@
 package HM485::Devicefile;
-
 our %definition = (
-	'HBW_LC_Bl4'	=> {
-		'version'		=> 13,
-		'eeprom-size'	=> 1024,
-		'models'	=> {
-			'HBW_LC_Bl4'	=> {
-				'name'			=> 'RS485 blind actuator 4-channel',
-				'type'			=> 130,
-				'minFW_version'	=> 0x0303
-			},
-		},
-		'params' => {
-			'master'	=> {
-				'logging_time'	=> {
-					'logical'		=> {
-						'type'		=> 'float',
-						'min'		=> 0.1,
-						'max'		=> 25.5,
-						'default'	=> 2.0,
-						'unit'		=> 's',
+	'HBW_LC_BL4' => {
+		'version' => 	14,
+		'eep_size' => 	1024,
+		'supported_types' => 	{
+			"HBW_LC_Bl4" => {
+				"name" => "RS485 blind actuator 4-channel",
+				"parameter" => {
+					"0" => {
+						"const_value" => 130,
+						"size" => 1
 					},
-					'physical'	=> {
-						'type'			=> 'int',
-						'size'			=> 1.0,
-						'interface'		=> 'eeprom',
-						'address_id'	=> 0x0001
+					"1" => {
+						"const_value" => 0,
+						"size" => 1
 					},
-					'conversion'	=> {
-						'type'		=> 'float_integer_scale',
-						'factor'	=> 10,
-						'offset'	=> 0.0
+					"2" => {
+						"cond_op" => "GE",
+						"const_value" => 0x0303,
+						"size" => 2
 					}
 				},
-				'central_address'	=> {
-					'hidden'		=> 1,
-					'enforce'		=> 0x00000001,
-					'logical'		=> {
-						'type'		=> 'int',
-					},
-					'physical'	=> {
-						'type'			=> 'int',
-						'size'			=> 4,
-						'interface'		=> 'eeprom',
-						'address_id'	=> 0x0002
-					}
-				},
-				'direct_link_deactivate'	=> {
-					'hidden'		=> 1,
-					'enforce'		=> 1,
-					'logical'		=> {
-						'type'		=> 'boolean',
-						'default'	=> 0,
-					},
-					'physical'	=> {
-						'type'			=> 'int',
-						'size'			=> 0.1,
-						'interface'		=> 'eeprom',
-						'address_id'	=> 0x0006
-					}
-				},
-			},
-		},
-		'frames'	=> {
-			'level_set'	=> {
-				'type'		=> 0x78,
-				'dir'		=> 'to_device',
-				'ch_field'	=> 10,
-				'params'	=> {
-					'level'		=> {
-						'type'	=> 'int',
-						'id'	=> 11.0,
-						'size'	=> 1 
-					},
-				},
-			},
-			'level_get'	=> {
-				'type'		=> 0x73,
-				'dir'		=> 'to_device', 
-				'ch_field'	=> 10,
-			},
-			'info_level'	=> {
-				'type'		=> 0x69,
-				'dir'		=> 'from_device',
-				'event'		=> 1,
-				'ch_field'	=> 10,
-				'params'	=> {
-					'level'		=> {
-						'type'	=> 'int',
-						'id'	=> 11.0,
-						'size'	=> 1
-					},
-					'state_flags'	=> { 
-						'type'	=> 'int',
-						'id'	=> 12.4,
-						'size'	=> 0.3
-					},
-				},
-			},
-			'stop'	=> {
-				'type'		=> 0x78,
-				'dir'		=> 'to_device',
-				'ch_field'	=> 10,
-				'params'	=> {
-					'level'		=> {
-						'type'			=> 'int',
-						'id'			=> 11.0,
-						'size'			=> 1,
-						'const_value'	=> 201
-					},
-				},
-			},
-			'key_event_short'	=> {
-				'type'		=> 0x4B,
-				'dir'		=> 'from_device',
-				'event'		=> 1,
-				'ch_field'	=> 10,
-				'params'	=> {
-					'key'	=> {
-						'type'			=> 'int',
-						'id'			=> 12.0,
-						'size'			=> 0.1,
-						'const_value'	=> 0
-					},
-					'counter'	=> {
-						'type'	=> 'int',
-						'id'	=> 12.2,
-						'size'	=> 0.6
-					}
-				}
-			},
-			'key_event_long'	=> {
-				'type'		=> 0x4B,
-				'dir'		=> 'from_device',
-				'event'		=> 1,
-				'ch_field'	=> 10,
-				'params'	=> {
-					'key'	=> {
-						'type'			=> 'int',
-						'id'			=> 12.0,
-						'size'			=> 0.1,
-						'const_value'	=> 1
-					},
-					'counter'	=> {
-						'type'	=> 'int',
-						'id'	=> 12.2,
-						'size'	=> 0.6
-					}
-				}
-			},
-			'key_sim_short'	=> {
-				'type'			=> 0x4B,										# Key-Sim frames are 0xCB? A 0x4B with set 8 bit?
-				'dir'			=> 'from_device',
-				'ch_field'		=> 10,
-				'rec_ch_field'	=> 11, 
-				'params'	=> {
-					'key'	=> {
-						'type'			=> 'int',
-						'id'			=> 12.0,
-						'size'			=> 0.1,
-						'const_value'	=> 0
-					},
-					'sim_counter'	=> {
-						'type'	=> 'int',
-						'id'	=> 12.2,
-						'size'	=> 0.6
-					},
-				},
-			},
-			'key_sim_long'	=> {
-				'type'			=> 0x4B,
-				'dir'			=> 'from_device',
-				'ch_field'		=> 10,
-				'rec_ch_field'	=> 11,
-				'params'	=> {
-					'key'	=> {
-						'type'			=> 'int',
-						'id'			=> 12.0,
-						'size'			=> 0.1,
-						'const_value'	=> 1
-					},
-					'sim_counter'	=> {
-						'type'	=> 'int',
-						'id'	=> 12.2,
-						'size'	=> 0.6
-					}
-				}
-			},
-			'set_lock'	=> {
-				'type'		=> 0x6C,
-				'dir'		=> 'to_device',
-				'ch_field'	=> 11,
-				'params'	=> {
-					'inhibit'	=> {
-						'type'	=> 'int',
-						'id'	=> 12.0,
-						'size'	=> 1.0
-					}
-				}
-			},
-			'toggle_install_test'	=> {
-				'type'		=> 0x78,
-				'dir'		=> 'to_device',
-				'ch_field'	=> 10,
-				'params'	=> {
-					'toggle_flag'	=> {
-						'type'	=> 'int',
-						'id'	=> 11.0,
-						'size'	=> 1.0
-					}
-				}
+				"priority" => 2
 			}
 		},
-		'channels'	=> {
-			'maintenance' => {
-				'id'		=> 0,
-				'ui-flags'	=> 'internal',
-				'class'		=> 'maintenance',
-				'count'	=> 1,
-				'params'	=> {
-					'master'	=> {},
-					'values'	=> {
-						'unreach'	=> {
-							'operations'	=> 'read,event',
-							'ui-flags'		=> 'service',
-							'logical'		=> {
-								'type'		=> 'boolean',
-							},
-							'physical'		=> {
-								'type'		=> 'int',
-								'interface'	=> 'internal',
-							},
+		'paramset' => 	{
+			"enforce" => {
+				"central_address" => {
+					"value" => 1
+				},
+				"direct_link_deactivate" => {
+					"value" => true
+				}
+			},
+			"id" => "hbw-lc-bl4_dev_master",
+			"parameter" => {
+				"central_address" => {
+					"hidden" => true,
+					"logical" => {
+						"type" => "integer"
+					},
+					"physical" => {
+						"address" => {
+							"index" => 0x0002
 						},
-						'sticky_unreach'	=> {
-							'operations'	=> 'read,write,event',
-							'ui-flags'		=> 'service',
-							'logical'		=> {
-								'type'		=> 'boolean',
-							},
-							'physical'		=> {
-								'type'		=> 'int',
-								'interface'	=> 'internal',
-							}
+						"interface" => "eeprom",
+						"size" => 4,
+						"type" => "integer"
+					}
+				},
+				"direct_link_deactivate" => {
+					"hidden" => true,
+					"logical" => {
+						"default" => false,
+						"type" => "boolean"
+					},
+					"physical" => {
+						"address" => {
+							"index" => 0x0006
 						},
-						'config_pending'	=> {
-							'operations'	=> 'read,event',
-							'ui-flags'		=> 'service',
-							'logical'		=> {
-								'type'		=> 'boolean',
-							},
-							'physical'		=> {
-								'type'		=> 'int',
-								'interface'	=> 'internal',
-							}
-						}
+						"interface" => "eeprom",
+						"size" => 0.1,
+						"type" => "integer"
+					}
+				},
+				"logging_time" => {
+					"conversion" => {
+						"factor" => 10,
+						"offset" => 0.0,
+						"type" => "float_integer_scale"
+					},
+					"logical" => {
+						"default" => 2.0,
+						"max" => 25.5,
+						"min" => 0.1,
+						"type" => "float",
+						"unit" => "s"
+					},
+					"physical" => {
+						"address" => {
+							"index" => 0x0001
+						},
+						"interface" => "eeprom",
+						"size" => 1.0,
+						"type" => "integer"
 					}
 				}
 			},
-			'blind' => {
-				'id'	=> 1,
-				'count'	=> 4,
-				'physical_id_offset'	=> -1,
-				'link_roles'	=> {
-					'target'	=> 'switch',
-				},
-				'params'	=> {
-					'master'	=> {
-						'address_start'	=> 0x07,
-						'address_step'	=> 7,
-						'logging'	=> {
-							'logical'	=> {
-								'type'	=> 'option',
-								'options' 	=> 'off,on',
-								'default'	=> 'on',
-							},
-							'physical'	=> {
-								'type'			=> 'int',
-								'size'			=> 0.1,
-								'interface'		=> 'eeprom',
-								'address_id'	=> 0.0
-							}
-						},
-						'change_over_delay'	=> {
-							'logical'	=> {
-								'type'		=> 'float',
-								'min' 		=> 0.0,
-								'max'	 	=> 25.5,
-								'default'	=> 0.5,
-								'unit'		=> 's',
-							},
-							'conversion'	=> {
-								'type'		=> 'float_integer_scale',
-								'factor'	=> 10,
-								'ofset'		=> 0.0,
-							},
-							'physical'	=> {
-								'type'			=> 'int',
-								'size'			=> 1,
-								'interface'		=> 'eeprom',
-								'address_id'	=> 1.0
-							}
-						},
-						'reference_run_counter'	=> {
-							'logical'	=> {
-								'type'		=> 'integer',
-								'min' 		=> 0,
-								'max'	 	=> 100,
-								'default'	=> 0,
-							},
-							'physical'	=> {
-								'type'			=> 'int',
-								'size'			=> 1,
-								'interface'		=> 'eeprom',
-								'address_id'	=> 2.0
-							}
-						},
-						'reference_running_time_bottom_top'	=> {
-							'logical'	=> {
-								'type'		=> 'float',
-								'min' 		=> 0.1,
-								'max'	 	=> 6000,
-								'default'	=> 50,
-								'unit'		=> 's',
-							},
-							'conversion'	=> {
-								'type'		=> 'float_integer_scale',
-								'factor'	=> 10,
-								'ofset'		=> 0.0,
-							},
-							'physical'	=> {
-								'type'			=> 'int',
-								'size'			=> 2,
-								'interface'		=> 'eeprom',
-								'endian'		=> 'little',
-								'address_id'	=> 3.0
-							}
-						},
-						'reference_running_time_top_bottom'	=> {
-							'logical'	=> {
-								'type'		=> 'float',
-								'min' 		=> 0.1,
-								'max'	 	=> 6000,
-								'default'	=> 50,
-								'unit'		=> 's',
-							},
-							'conversion'	=> {
-								'type'		=> 'float_integer_scale',
-								'factor'	=> 10,
-								'ofset'		=> 0.0,
-							},
-							'physical'	=> {
-								'type'			=> 'int',
-								'size'			=> 2,
-								'interface'		=> 'eeprom',
-								'endian'		=> 'little',
-								'address_id'	=> 5.0
-							}
-						}
+			"type" => "master"
+		},
+		'frames' => 	{
+			"info_level" => {
+				"channel_field" => 10,
+				"direction" => "from_device",
+				"event" => true,
+				"parameter" => {
+					"11.0" => {
+						"param" => "level",
+						"size" => 1.0,
+						"type" => "integer"
 					},
-					'values' => {
-						'level'	=> {
-							'operations'=> 'read,write,event',
-							'control'	=> 'blind.level',
-							'logical'	=> {
-								'type'		=> 'int',
-								'default'	=> 0,
-								'min'		=> 0,
-								'max'		=> 100,
-								'unit'		=> '100%',
-							},
-							'physical'	=> {
-								'type'		=> 'int',
-								'interface'	=> 'command',
-								'value_id'	=> 'level',
-								'set'	=> {
-									'request'	=> 'level_set',
-								},
-								'get'	=> {
-									'request'	=> 'level_get',
-									'response'	=> 'info_level',
-								},
-								'event'	=> {
-									'frame'	=> 'info_level',
-								},
-							},
-							'conversion'	=> {
-								'type'		=> 'float_integer_scale',
-								'factor'	=> 2,
-								'false'		=> 0,
-								'true'		=> 200
-							},
-							'value_map'	=> {
-								'type'	=> 'integer_integer_map',
-								'01'	=> {
-									'device_value'		=> 0x04,
-									'parameter_value'	=> 1,
-									'mask'				=> 0x04,
-								},
-								'02'	=> {
-									'device_value'		=> 0x00,
-									'parameter_value'	=> 0,
-								},
-								'03'	=> {
-									'device_value'		=> 0x01,
-									'parameter_value'	=> 1,
-								},
-								'04'	=> {
-									'device_value'		=> 0x02,
-									'parameter_value'	=> 1,
-								},
-								'05'	=> {
-									'device_value'		=> 0x03,
-									'parameter_value'	=> 0,
-								}
-							}
-						},
-						'working' => {
-							'operations'=> 'read,event',
-							'ui_flags'	=> 'internal',
-							'logical'	=> {
-								'type'	=> 'boolean',
-								'default'	=> 0,
-							},
-							'physical'	=> {
-								'type'		=> 'int',
-								'interface'	=> 'command',
-								'value_id'	=> 'state_flags',
-								'get'	=> {
-									'request'	=> 'level_get',
-									'response'	=> 'info_level',
-								},
-								'event'	=> {
-									'frame'	=> 'info_level, ack_status',
-								},
-							},
-							'conversion'	=> {
-								'type'		=> 'boolean_integer',
-							}
-						},
-						'direction'	=> {
-							'operations'=> 'read,event',
-							'ui_flags'	=> 'internal',
-							'logical'	=> {
-								'type'		=> 'option',
-								'options' 	=> 'none, up, down, undefined',
-								'default'	=> 'none',
-							},
-							'physical'	=> {
-								'type'		=> 'int',
-								'interface'	=> 'command',
-								'value_id'	=> 'state_flags',
-								'get'	=> {
-									'request'	=> 'level_get',
-									'response'	=> 'info_level',
-								},
-								'event'	=> {
-									'frame'	=> 'info_level, ack_status',
-								},
-							},
-							'value_map'	=> {
-								'type'	=> 'option_integer',
-								'01'	=> {
-									'device_value'		=> 0x00,
-									'parameter_value'	=> 0,
-								},
-								'02'	=> {
-									'device_value'		=> 0x01,
-									'parameter_value'	=> 1,
-								},
-								'03'	=> {
-									'device_value'		=> 0x02,
-									'parameter_value'	=> 2,
-								},
-								'04'	=> {
-									'device_value'		=> 0x03,
-									'parameter_value'	=> 3,
-								}
-							}
-						},
-						'stop'	=> {
-							'operations'=> 'write',
-							'control'	=> 'blind.stop',
-							'logical'	=> {
-								'type'		=> 'action',
-							},
-							'physical'	=> {
-								'type'		=> 'int',
-								'interface'	=> 'command',
-								'value_id'	=> 'dummy',
-								'set'	=> {
-									'request'	=> 'stop',
-								},
-							},
-						},
-						'inhibit' => {
-							'operations'=> 'read,write,event',
-							'control'	=> 'none',
-							'loopback'	=> 1,
-							'logical'	=> {
-								'type'	=> 'boolean',
-								'default'	=> 0,
-							},
-							'physical'	=> {
-								'type'		=> 'int',
-								'interface'	=> 'command',
-								'value_id'	=> 'inhibit',
-								'set'	=> {
-									'request'	=> 'set_lock',
-								}
-							}
-						},
-						'install_test' => {
-							'operations'=> 'write',
-							'ui_flags'	=> 'internal',
-							'logical'	=> {
-								'type'	=> 'action',
-							},
-							'physical'	=> {
-								'type'		=> 'int',
-								'interface'	=> 'command',
-								'value_id'	=> 'toggle_flag',
-								'no_init'	=> 'true',
-								'set'	=> {
-									'request'	=> 'toggle_install_test',
-								}
-							},
-							'conversion'	=> {
-								'type'		=> 'blind_test',
-								'value'	=> 201
-							}
-						}
+					"12.4" => {
+						"param" => "state_flags",
+						"size" => 0.3,
+						"type" => "integer"
 					}
-				}
+				},
+				"type" => 0x69
+			},
+			"key_event_long" => {
+				"channel_field" => 10,
+				"direction" => "from_device",
+				"event" => true,
+				"parameter" => {
+					"12.0" => {
+						"const_value" => 1,
+						"size" => 0.1,
+						"type" => "integer"
+					},
+					"12.2" => {
+						"param" => "counter",
+						"size" => 0.6,
+						"type" => "integer"
+					}
+				},
+				"type" => 0x4B
+			},
+			"key_event_short" => {
+				"channel_field" => 10,
+				"direction" => "from_device",
+				"event" => true,
+				"parameter" => {
+					"12.0" => {
+						"const_value" => 0,
+						"size" => 0.1,
+						"type" => "integer"
+					},
+					"12.2" => {
+						"param" => "counter",
+						"size" => 0.6,
+						"type" => "integer"
+					}
+				},
+				"type" => 0x4B
+			},
+			"key_sim_long" => {
+				"channel_field" => 10,
+				"direction" => "from_device",
+				"parameter" => {
+					"12.0" => {
+						"const_value" => 1,
+						"size" => 0.1,
+						"type" => "integer"
+					},
+					"12.2" => {
+						"param" => "sim_counter",
+						"size" => 0.6,
+						"type" => "integer"
+					}
+				},
+				"receiver_channel_field" => 11,
+				"type" => 0x4B
+			},
+			"key_sim_short" => {
+				"channel_field" => 10,
+				"direction" => "from_device",
+				"parameter" => {
+					"12.0" => {
+						"const_value" => 0,
+						"size" => 0.1,
+						"type" => "integer"
+					},
+					"12.2" => {
+						"param" => "sim_counter",
+						"size" => 0.6,
+						"type" => "integer"
+					}
+				},
+				"receiver_channel_field" => 11,
+				"type" => 0x4B
+			},
+			"level_get" => {
+				"channel_field" => 10,
+				"direction" => "to_device",
+				"type" => 0x53
+			},
+			"level_set" => {
+				"channel_field" => 10,
+				"direction" => "to_device",
+				"parameter" => {
+					"index" => 11.0,
+					"param" => "level",
+					"size" => 1.0,
+					"type" => "integer"
+				},
+				"type" => 0x78
+			},
+			"set_lock" => {
+				"channel_field" => 11,
+				"direction" => "to_device",
+				"parameter" => {
+					"index" => 12.0,
+					"param" => "inhibit",
+					"size" => 1.0,
+					"type" => "integer"
+				},
+				"type" => 0x6C
+			},
+			"stop" => {
+				"channel_field" => 10,
+				"direction" => "to_device",
+				"parameter" => {
+					"const_value" => 201,
+					"index" => 11.0,
+					"size" => 1.0,
+					"type" => "integer"
+				},
+				"type" => 0x78
+			},
+			"toggle_install_test" => {
+				"channel_field" => 10,
+				"direction" => "to_device",
+				"parameter" => {
+					"index" => 11.0,
+					"param" => "toggle_flag",
+					"size" => 1.0,
+					"type" => "integer"
+				},
+				"type" => 0x78
 			}
-		}
+		},
+		'channels' => 	{
+			"blind" => {
+				"count" => 4,
+				"index" => 1,
+				"link_roles" => {
+					"target" => {
+						"name" => "switch"
+					}
+				},
+				"paramset" => {
+					"master" => {
+						"address_start" => 0x07,
+						"address_step" => 7,
+						"parameter" => {
+							"change_over_delay" => {
+								"conversion" => {
+									"factor" => 10,
+									"offset" => 0.0,
+									"type" => "float_integer_scale"
+								},
+								"logical" => {
+									"default" => 0.5,
+									"max" => 25.5,
+									"min" => 0.5,
+									"type" => "float",
+									"unit" => "s"
+								},
+								"physical" => {
+									"address" => {
+										"index" => 1
+									},
+									"interface" => "eeprom",
+									"size" => 1.0,
+									"type" => "integer"
+								}
+							},
+							"logging" => {
+								"logical" => {
+									"option" => {
+										"off" => {},
+										"on" => {
+											"default" => true
+										}
+									},
+									"type" => "option"
+								},
+								"physical" => {
+									"address" => {
+										"index" => 0
+									},
+									"interface" => "eeprom",
+									"size" => 0.1,
+									"type" => "integer"
+								}
+							},
+							"reference_running_time_bottom_top" => {
+								"conversion" => {
+									"factor" => 10,
+									"offset" => 0.0,
+									"type" => "float_integer_scale"
+								},
+								"logical" => {
+									"default" => 50.0,
+									"max" => 6000.0,
+									"min" => 0.1,
+									"type" => "float",
+									"unit" => "s"
+								},
+								"physical" => {
+									"address" => {
+										"index" => 3
+									},
+									"endian" => "little",
+									"interface" => "eeprom",
+									"size" => 2.0,
+									"type" => "integer"
+								}
+							},
+							"reference_running_time_top_bottom" => {
+								"conversion" => {
+									"factor" => 10,
+									"offset" => 0.0,
+									"type" => "float_integer_scale"
+								},
+								"logical" => {
+									"default" => 50.0,
+									"max" => 6000.0,
+									"min" => 0.1,
+									"type" => "float",
+									"unit" => "s"
+								},
+								"physical" => {
+									"address" => {
+										"index" => 5
+									},
+									"endian" => "little",
+									"interface" => "eeprom",
+									"size" => 2.0,
+									"type" => "integer"
+								}
+							},
+							"reference_run_counter" => {
+								"logical" => {
+									"default" => 0,
+									"max" => 100,
+									"min" => 0,
+									"type" => "integer"
+								},
+								"physical" => {
+									"address" => {
+										"index" => 2
+									},
+									"interface" => "eeprom",
+									"size" => 1.0,
+									"type" => "integer"
+								}
+							}
+						},
+						"type" => "master"
+					},
+					"values" => {
+						"parameter" => {
+							"direction" => {
+								"conversion" => {
+									"type" => "option_integer",
+									"value_map" => {
+										"1" => {
+											"device_value" => 0x00,
+											"parameter_value" => 0
+										},
+										"2" => {
+											"device_value" => 0x01,
+											"parameter_value" => 1
+										},
+										"3" => {
+											"device_value" => 0x02,
+											"parameter_value" => 2
+										},
+										"4" => {
+											"device_value" => 0x03,
+											"parameter_value" => 3
+										}
+									}
+								},
+								"logical" => {
+									"option" => {
+										"down" => {},
+										"none" => {
+											"default" => true
+										},
+										"undefined" => {},
+										"up" => {}
+									},
+									"type" => "option"
+								},
+								"operations" => "read,event",
+								"physical" => {
+									"event" => {
+										"1" => {
+											"frame" => "info_level"
+										},
+										"2" => {
+											"frame" => "ack_status"
+										}
+									},
+									"get" => {
+										"request" => "level_get",
+										"response" => "info_level"
+									},
+									"interface" => "command",
+									"type" => "integer",
+									"value_id" => "state_flags"
+								},
+								"ui_flags" => "internal"
+							},
+							"inhibit" => {
+								"control" => "none",
+								"logical" => {
+									"default" => false,
+									"type" => "boolean"
+								},
+								"loopback" => true,
+								"operations" => "read,write,event",
+								"physical" => {
+									"interface" => "command",
+									"set" => {
+										"request" => "set_lock"
+									},
+									"type" => "integer",
+									"value_id" => "inhibit"
+								}
+							},
+							"install_test" => {
+								"conversion" => {
+									"type" => "blind_test",
+									"value" => 201
+								},
+								"logical" => {
+									"type" => "action"
+								},
+								"operations" => "write",
+								"physical" => {
+									"interface" => "command",
+									"no_init" => true,
+									"set" => {
+										"request" => "toggle_install_test"
+									},
+									"type" => "integer",
+									"value_id" => "toggle_flag"
+								},
+								"ui_flags" => "internal"
+							},
+							"level" => {
+								"control" => "blind.level",
+								"conversion" => {
+									"factor" => 2,
+									"type" => "float_integer_scale"
+								},
+								"logical" => {
+									"default" => 0.0,
+									"max" => 1.0,
+									"min" => 0.0,
+									"type" => "float",
+									"unit" => "100%"
+								},
+								"operations" => "read,write,event",
+								"physical" => {
+									"event" => {
+										"frame" => "info_level"
+									},
+									"get" => {
+										"request" => "level_get",
+										"response" => "info_level"
+									},
+									"interface" => "command",
+									"set" => {
+										"request" => "level_set"
+									},
+									"type" => "integer",
+									"value_id" => "level"
+								}
+							},
+							"stop" => {
+								"control" => "blind.stop",
+								"logical" => {
+									"type" => "action"
+								},
+								"operations" => "write",
+								"physical" => {
+									"interface" => "command",
+									"set" => {
+										"request" => "stop"
+									},
+									"type" => "integer",
+									"value_id" => "dummy"
+								}
+							},
+							"working" => {
+								"conversion" => {
+									"1" => {
+										"type" => "boolean_integer"
+									},
+									"2" => {
+										"type" => "integer_integer_map",
+										"value_map" => {
+											"1" => {
+												"device_value" => 0x04,
+												"mask" => 0x04,
+												"parameter_value" => 1
+											},
+											"2" => {
+												"device_value" => 0x00,
+												"parameter_value" => 0
+											},
+											"3" => {
+												"device_value" => 0x01,
+												"parameter_value" => 1
+											},
+											"4" => {
+												"device_value" => 0x02,
+												"parameter_value" => 1
+											},
+											"5" => {
+												"device_value" => 0x03,
+												"parameter_value" => 0
+											}
+										}
+									}
+								},
+								"logical" => {
+									"default" => false,
+									"type" => "boolean"
+								},
+								"operations" => "read,event",
+								"physical" => {
+									"event" => {
+										"1" => {
+											"frame" => "info_level"
+										},
+										"2" => {
+											"frame" => "ack_status"
+										}
+									},
+									"get" => {
+										"request" => "level_get",
+										"response" => "info_level"
+									},
+									"interface" => "command",
+									"type" => "integer",
+									"value_id" => "state_flags"
+								},
+								"ui_flags" => "internal"
+							}
+						},
+						"type" => "values"
+					}
+				},
+				"physical_index_offset" => -1
+			},
+			"maintenance" => {
+				"class" => "maintenance",
+				"count" => 1,
+				"index" => 0,
+				"paramset" => {
+					"maint_ch_master" => {
+						"type" => "master"
+					},
+					"maint_ch_values" => {
+						"parameter" => {
+							"config_pending" => {
+								"logical" => {
+									"type" => "boolean"
+								},
+								"operations" => "read,event",
+								"physical" => {
+									"interface" => "internal",
+									"type" => "integer",
+									"value_id" => "config_pending"
+								},
+								"ui_flags" => "service"
+							},
+							"sticky_unreach" => {
+								"logical" => {
+									"type" => "boolean"
+								},
+								"operations" => "read,write,event",
+								"physical" => {
+									"interface" => "internal",
+									"type" => "integer",
+									"value_id" => "sticky_unreach"
+								},
+								"ui_flags" => "service"
+							},
+							"unreach" => {
+								"logical" => {
+									"type" => "boolean"
+								},
+								"operations" => "read,event",
+								"physical" => {
+									"interface" => "internal",
+									"type" => "integer",
+									"value_id" => "unreach"
+								},
+								"ui_flags" => "service"
+							}
+						},
+						"type" => "values"
+					}
+				},
+				"ui_flags" => "internal"
+			}
+		},
 	}
-);
-
-1;
+);	

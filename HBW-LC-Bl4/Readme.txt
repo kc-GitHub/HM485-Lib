@@ -14,8 +14,7 @@ Aktuell implementierte Befehle:
 0xFF = Toggle
 
 Damit FHEM das Homebrew-Device richtig erkennt, muss die HBW-LC-Bl4.pm Datei in den Ordner \FHEM\lib\HM485\Devices kopiert werden (Das Device gibt sich als HW-Typ 0x82 aus).
-Config der Fahrzeiten (hoch/runter/Richtungswechsel der Lamellen) kann über das FHEM-Webfrontend vorgenommen werden. In dem Modul Device.pm kann es dabei noch zu einer fehlerhaften Berechnung der EEPROM-Adressen kommen.
-Abhilfe schafft die beigefügte Datei Device.pm mit der die original Datei ersetzt werden muss.
+Config der Fahrzeiten (hoch/runter/Richtungswechsel der Lamellen) kann über das FHEM-Webfrontend vorgenommen werden.
 
 Standard-Pinbelegung:
 0 - Rx RS485
