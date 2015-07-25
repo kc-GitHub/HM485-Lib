@@ -1,0 +1,74 @@
+<device version="11" eep_size="1024">
+  <supported_types>
+    <type name="RS485 dimming actuator 99-channel)" id="HBW-LC-Dim99" priority="2">
+	  <parameter index="0" size="1" const_value="146"/>
+	  <parameter index="1" size="1" const_value="0"/>
+	  <parameter index="2" size="2" cond_op="GE" const_value="0x0100"/>
+	</type>
+  </supported_types>
+  <paramset type="MASTER" id="HBW-LC-Dim99_dev_master">
+    <parameter id="LOGGING_TIME">
+      <logical type="float" min="0.1" max="25.5" default="2.0" unit="s"/>
+	  <physical type="integer" size="1.0" interface="eeprom">
+	    <address index="0x0001"/>
+	  </physical>
+	<conversion type="float_integer_scale" factor="10" offset="0.0"/>
+  </parameter>
+  <parameter id="CENTRAL_ADDRESS" hidden="true">
+    <logical type="integer"/>
+	<physical type="integer" size="4" interface="eeprom">
+	  <address index="0x0002"/>
+	</physical>
+  </parameter>
+  <enforce id="CENTRAL_ADDRESS" value="1"/>
+  <parameter id="DIRECT_LINK_DEACTIVATE" hidden="true">
+    <logical type="boolean" default="false"/>
+	<physical type="integer" size="0.1" interface="eeprom">
+	  <address index="0x0006"/>
+	</physical>
+  </parameter>
+  <enforce id="DIRECT_LINK_DEACTIVATE" value="true"/>
+  </paramset>
+  <frames>
+    <frame id="LEVEL_SET" direction="to_device" type="#x" channel_field="10">
+	  <parameter type="integer" index="11.0" size="1.0" param="LEVEL"/>
+	</frame>
+	<frame id="LEVEL_GET" direction="to_device" type="#S" channel_field="10"></frame>
+	<frame id="INFO_LEVEL" direction="from_device" event="true" type="#i" channel_field="10">
+	  <parameter type="integer" index="11.0" size="1.0" param="LEVEL"/>
+	  <parameter size="0.3" index="12.4" type="integer" param="STATE_FLAGS"/>
+	</frame>
+  </frames>
+  <channels>
+    <channel index="0" type="MAINTENANCE" ui_flags="internal" class="maintenance" count="1">
+	  <paramset type="MASTER" id="maint_ch_master"></paramset>
+	  <paramset type="VALUES" id="maint_ch_values">
+	    <parameter id="UNREACH" operations="read,event" ui_flags="service">
+		  <logical type="boolean"/>
+		  <physical type="integer" interface="internal" value_id="UNREACH"/>
+		</parameter>
+		<parameter id="STICKY_UNREACH" operations="read,write,event" ui_flags="service">
+		  <logical type="boolean"/>
+		  <physical type="integer" interface="internal" value_id="STICKY_UNREACH"/>
+		</parameter>
+		<parameter id="CONFIG_PENDING" operations="read,event" ui_flags="service">
+		  <logical type="boolean"/>
+		  <physical type="integer" interface="internal" value_id="CONFIG_PENDING"/>
+		</parameter>
+      </paramset>
+	</channel>
+    <channel index="1" physical_index_offset="-1" count="5" type="DIMMER">
+	  <paramset type="VALUES" id="hmw_dimmer_ch_values">
+	    <parameter id="LEVEL" operations="read,write,event" control="DIMMER.LEVEL">
+		  <logical type="float" unit="100%" default="0.0" max="1.0" min="0.0"/>
+		  <physical type="integer" interface="command" value_id="LEVEL">
+		    <set request="LEVEL_SET"/>
+			<get request="LEVEL_GET" response="INFO_LEVEL"/>
+			<event frame="INFO_LEVEL"/>
+	      </physical>
+		  <conversion type="float_integer_scale" factor="200"/>
+	    </parameter>
+	  </paramset>
+	</channel>
+  </channels>
+</device>
