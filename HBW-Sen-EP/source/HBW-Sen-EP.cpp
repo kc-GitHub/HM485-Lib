@@ -4,7 +4,7 @@
 //
 // Homematic Wired Hombrew Hardware
 // Arduino Uno als Homematic-Device
-// HBW-Sen-EP zum Zählen von elektrischen Pulsen (z.B. S0-Schnittstelle)
+// HBW-Sen-EP zum Zï¿½hlen von elektrischen Pulsen (z.B. S0-Schnittstelle)
 //
 //*******************************************************************
 
@@ -14,7 +14,7 @@
 /********************************/
 
 #define BUTTON 8            // Das Bedienelement
-#define RS485_TXEN 2        // Transmit-Enable
+#define RS485_TXEN 4        // Transmit-Enable
 #define Sen1 14				// 14 = A0 als digitaler Eingang
 #define Sen2 15
 #define Sen3 16
@@ -135,6 +135,16 @@ void setDefaults(){
   };
 };
 
+// After writing the central Address to the EEPROM, the CCU does
+// not trigger a re-read config
+unsigned long centralAddressGet() {
+  unsigned long result = 0;
+  for(int address = 2; address < 6; address++){
+	result <<= 8;
+	result |= EEPROM.read(address);
+  };
+  return result;
+};
 
 
 // Klasse fuer Callbacks vom Protokoll
@@ -189,8 +199,8 @@ void handleButton() {
   // dann innerhalb 10s langer Tastendruck (3s) -> LED geht aus, EEPROM-Reset
 
   static long lastTime = 0;
-  static byte status = 0;  // 0: normal, 1: Taste erstes mal gedrückt, 2: erster langer Druck erkannt
-                           // 3: Warte auf zweiten Tastendruck, 4: Taste zweites Mal gedrückt
+  static byte status = 0;  // 0: normal, 1: Taste erstes mal gedrï¿½ckt, 2: erster langer Druck erkannt
+                           // 3: Warte auf zweiten Tastendruck, 4: Taste zweites Mal gedrï¿½ckt
                            // 5: zweiter langer Druck erkannt
 
   long now = millis();
@@ -205,7 +215,7 @@ void handleButton() {
     case 1:
       if(buttonState) {   // immer noch gedrueckt
         if(now - lastTime > 5000) {status = 2;   hmwdebug(status);}
-      }else{              // nicht mehr gedrückt
+      }else{              // nicht mehr gedrï¿½ckt
     	if(now - lastTime > 100)   // determine sensors and send announce on short press
     		hmwmodule->broadcastAnnounce(0);
         status = 0;
@@ -236,7 +246,7 @@ void handleButton() {
           	break;
       if(buttonState) {   // immer noch gedrueckt
         if(now - lastTime > 3000) {status = 5;  hmwdebug(status);}
-      }else{              // nicht mehr gedrückt
+      }else{              // nicht mehr gedrï¿½ckt
         status = 0;
         hmwdebug(status);
       };
@@ -245,7 +255,7 @@ void handleButton() {
       if(!buttonState) {    //erst wenn losgelassen
     	// Factory-Reset          !!!!!!  TODO: Gehoert das ins Modul?
     	factoryReset();
-    	hmwmodule->setNewId();
+    	//hmwmodule->setNewId();
     	status = 0;
     	hmwdebug(status);
       }
@@ -323,7 +333,8 @@ void handleCounter() {
     if(    (config.counters[channel].send_max_interval && now - lastSentTime[channel] >= (long)(config.counters[channel].send_max_interval) * 1000)
    	 || (config.counters[channel].send_delta_count
    	         && abs( currentCount[channel] - lastSentCount[channel] ) >= (config.counters[channel].send_delta_count))) {
-	     hmwmodule->sendInfoMessage(channel,currentCount[channel],config.central_address);
+//	     hmwmodule->sendInfoMessage(channel,currentCount[channel],config.central_address);
+	     hmwmodule->sendInfoMessage(channel,currentCount[channel], centralAddressGet());
         lastSentCount[channel] = currentCount[channel];
         lastSentTime[channel] = now;
     };
@@ -396,7 +407,7 @@ void setup()
 // The loop function is called in an endless loop
 void loop()
 {
-	// Daten empfangen und alles, was zur Kommunikationsschicht gehört
+	// Daten empfangen und alles, was zur Kommunikationsschicht gehï¿½rt
 	// processEvent vom Modul wird als Callback aufgerufen
 	hmwrs485.loop();
 
