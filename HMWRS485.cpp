@@ -17,6 +17,8 @@ HMWRS485::HMWRS485(Stream* _serial, byte _txEnablePin) {
 	serial = _serial;
 	txEnablePin = _txEnablePin;
 	frameComplete = 0;
+	lastReceivedTime = 0;
+	minIdleTime = DIFS_CONSTANT;  // changes in setOwnAddress
 }
 
 HMWRS485::~HMWRS485() {
@@ -52,6 +54,19 @@ HMWRS485::~HMWRS485() {
 // TODO: Make methods static?
 
 
+// eigene Adresse setzen und damit auch random seed
+void HMWRS485::setOwnAddress(unsigned long address) {
+  ownAddress = address;
+  randomSeed(ownAddress);
+  minIdleTime = random(DIFS_CONSTANT, DIFS_CONSTANT+DIFS_RANDOM);
+}
+
+
+unsigned long HMWRS485::getOwnAddress() {
+	return ownAddress;
+}
+
+
 void HMWRS485::loop() {
 // main loop, muss immer wieder aufgerufen werden
 // Daten empfangen (tut nichts, wenn keine Daten vorhanden)
@@ -59,7 +74,7 @@ void HMWRS485::loop() {
   // Check
   if(frameComplete) {
 	frameComplete = 0;   // only once
-    if(targetAddress == txSenderAddress || targetAddress == 0xFFFFFFFF){
+    if(targetAddress == ownAddress || targetAddress == 0xFFFFFFFF){
       hmwdebug(F("parsing from loop..."));
 	  if(parseFrame())
 	    module->processEvent(frameData, frameDataLength, (targetAddress == 0xFFFFFFFF));
@@ -105,11 +120,24 @@ boolean HMWRS485::parseFrame () { // returns true, if event needs to be processe
 
 
 // send Frame, wait for ACK and maybe repeat
-void HMWRS485::sendFrame(){
+// onlyIfIdle: If this is set, then the bus must have been idle since 210+rand(0..100) ms
+// sendFrame returns...
+//   0 -> ok
+//   1 -> bus not idle (only if onlyIfIdle)
+//   2 -> three times no ACK (cannot occur for broadcasts or ACKs)
+byte HMWRS485::sendFrame(boolean onlyIfIdle){
 // TODO: non-blocking
 // TODO: Wenn als Antwort kein reines ACK kommt, dann geht die Antwort verloren
 //       D.h. sie wird nicht interpretiert. Die Gegenstelle sollte es dann nochmal
 //       senden, aber das ist haesslich.
+
+// carrier sense
+   if(onlyIfIdle) {
+	 if(millis() - lastReceivedTime < minIdleTime)
+		 return 1;
+	 // set new idle time
+	 minIdleTime = random(DIFS_CONSTANT, DIFS_CONSTANT+DIFS_RANDOM);
+   }
 
 // simple send for ACKs and Broadcasts
   if(txTargetAddress == 0xFFFFFFFF || ((txFrameControlByte & 0x03) == 1)) {
@@ -118,7 +146,7 @@ void HMWRS485::sendFrame(){
 	sendFrameSingle();
 	// TODO: nicht besonders schoen, zuerst ackwait zu setzen und dann wieder zu loeschen
 	frameStatus &= ~FRAME_SENTACKWAIT; // we do not really wait
-	return;
+	return 0;  // we do not wait for an ACK, i.e. always ok
   };
 
   unsigned long lastTry = 0;
@@ -128,23 +156,29 @@ void HMWRS485::sendFrame(){
     lastTry = millis();
 // wait for ACK
     // TODO: Die Wartezeit bis die Uebertragung wiederholt wird sollte einen Zufallsanteil haben
-    while(millis() - lastTry < 200) {
+    while(millis() - lastTry < ACKWAITTIME) {   // normally 200ms
 // Daten empfangen (tut nichts, wenn keine Daten vorhanden)
       receive();
 // Check
 // TODO: Was tun, wenn inzwischen ein Broadcast kommt, auf den wir reagieren muessten?
 //       (Pruefen, welche das sein koennten.)
       if(frameComplete) {
-        if(targetAddress == txSenderAddress){
+        if(targetAddress == ownAddress){
           frameComplete = 0;
           hmwdebug(F("parsing from ackwait "));
           parseFrame();
           if(!(frameStatus & FRAME_SENTACKWAIT))  // ACK empfangen
-            return;
+            return 0;  // we have an ACK, i.e. ok
         };
       };
     };
+    // We have not received an ACK. However, there might be
+    // other stuff on the bus and we might better keep quiet
+    // TODO: random part?
+    if(onlyIfIdle && millis() - lastTry < RETRYIDLETIME)
+        return 1;	// bus is not really free
   };
+  return 2;  // three times without ACK
 }
 
 
@@ -192,7 +226,7 @@ void HMWRS485::sendFrameSingle() {
       crc16checksum = crc16Shift(txFrameControlByte , crc16checksum);
 
       if(bitRead(txFrameControlByte,3)){                                      // check if message has sender
-    	  address = txSenderAddress;
+    	  address = ownAddress;
     	  for( i = 0; i < 4; i++){                                           // send sender address
     	    	 tmpByte = address >> 24;
     	         sendFrameByte( tmpByte );
@@ -301,6 +335,9 @@ void HMWRS485::receive(){
 //       nach ein paar Millisekunden unterbrochen werden sollte?
 
   while(serial->available()) {
+
+//  carrier sense
+	lastReceivedTime = millis();
 
     byte rxByte = serial->read();    // von Serial oder SoftSerial
 

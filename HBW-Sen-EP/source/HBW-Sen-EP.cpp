@@ -31,7 +31,7 @@
 #define DEBUG_UNO 1    // Hardware-Serial ist Debug-Ausgang, RS485 per Soft auf pins 5/6
 #define DEBUG_UNIV 2   // Hardware-Serial ist RS485, Debug per Soft auf pins 5/6
 
-#define DEBUG_VERSION DEBUG_UNIV
+#define DEBUG_VERSION DEBUG_NONE
 
 #if DEBUG_VERSION == DEBUG_UNO
   #define RS485_RXD 5
@@ -157,7 +157,7 @@ class HMWDevice : public HMWDeviceBase {
 
 
 
-	unsigned int getLevel(byte channel) {
+	unsigned int getLevel(byte channel, byte command) {
 		// everything in the right limits?
 		if(channel >= HMW_CONFIG_NUM_COUNTERS) return 0;
 		return currentCount[channel];
@@ -334,9 +334,11 @@ void handleCounter() {
    	 || (config.counters[channel].send_delta_count
    	         && abs( currentCount[channel] - lastSentCount[channel] ) >= (config.counters[channel].send_delta_count))) {
 //	     hmwmodule->sendInfoMessage(channel,currentCount[channel],config.central_address);
-	     hmwmodule->sendInfoMessage(channel,currentCount[channel], centralAddressGet());
-        lastSentCount[channel] = currentCount[channel];
-        lastSentTime[channel] = now;
+        // if bus is busy, then we try again in the next round
+	    if(hmwmodule->sendInfoMessage(channel,currentCount[channel], centralAddressGet()) != 1) {
+            lastSentCount[channel] = currentCount[channel];
+            lastSentTime[channel] = now;
+		};
     };
   };
 }
@@ -396,11 +398,23 @@ void setup()
 
     hmwdebug("Huhu\n");
 
-    // send announce message
-	hmwmodule->broadcastAnnounce(0);
 #if DEBUG_VERSION != DEBUG_NONE
 	printChannelConf();
 #endif
+}
+
+
+// broadcast announce message once at the beginning
+// this might need to "wait" until the bus is free
+void handleBroadcastAnnounce() {
+  static boolean announced = false;
+  // avoid sending broadcast in the first second
+  // we don't care for the overflow as the announce
+  // is sent after 40 days anyway (hopefully)
+  if(millis() < 1000) return;
+  if(announced) return;
+  // send methods return 0 if everything is ok
+  announced = (hmwmodule->broadcastAnnounce(0) == 0);
 }
 
 
@@ -411,7 +425,9 @@ void loop()
 	// processEvent vom Modul wird als Callback aufgerufen
 	hmwrs485.loop();
 
-
+// send announce message, if not done yet
+   handleBroadcastAnnounce();
+	
 	// Bedienung ueber Button
 	handleButton();
 
