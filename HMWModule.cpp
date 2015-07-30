@@ -135,9 +135,9 @@ void HMWModule::processEvent(byte const * const frameData, byte frameDataLength,
          case 'q':                                                               // Zieladresse hinzufügen?
             // TODO: ???
         	break;
-         case 's':                                                               // Aktor setzen
-            processEventSetLevel(frameData[1], frameDataLength-2, &(frameData[2]));
-            break;
+         // case 's':  // 's' (0x73) ist dasselbe wie 'x' (0x78), daher weiter unten implementiert
+        	           // Das widerspricht zwar der Protokoll-Beschreibung, aber bisher haben alle
+        	           // Original-HM-Geraete so reagiert
          case 'u':                                                              // Update (Bootloader starten)
             // Bootloader neu starten
             // Goto $7c00                                                          ' Adresse des Bootloaders
@@ -150,8 +150,10 @@ void HMWModule::processEvent(byte const * const frameData, byte frameDataLength,
             hmwrs485->txFrameData[1] = MODULE_FIRMWARE_VERSION & 0xFF;
             hmwrs485->txFrameDataLength = 2;
             break;
-         case 'x':                                                               // Level set
-            processEventSetLevel(frameData[1], frameDataLength-2, &(frameData[2]));     // Install-Test TODO: ???
+         case 's':   // level set
+         case 'x':   // Level set. In der Protokollbeschreibung steht hier was von "install test",
+        	         // aber es sieht so aus, als ob 0x73 und 0x78 dasselbe tun
+            processEventSetLevel(frameData[1], frameDataLength-2, &(frameData[2]));
             // get what the hardware did and send it back
             processEventGetLevel(frameData[1], frameData[0]);  // for feedback
             sendAck = 2;
