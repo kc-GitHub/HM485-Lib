@@ -20,9 +20,9 @@
 // Abstrakte Basisklasse mit Callbacks aus dem Modul
 class HMWDeviceBase {
   public:
-	virtual void setLevel(byte,unsigned int) {};  // channel, level (deprecated)
+	virtual void setLevel(byte,uint16_t) {};  // channel, level (deprecated)
 	virtual void setLevel(byte,byte,byte const * const) {};    // channel, data length, data
-	virtual unsigned int getLevel(byte, byte) = 0;  // channel, command (0x78, 0x53), returns level
+	virtual uint16_t getLevel(byte, byte) = 0;  // channel, command (0x78, 0x53), returns level
 	virtual void readConfig() = 0;         // read config from EEPROM
 };
 
@@ -43,13 +43,13 @@ public:
 	//  0 -> ok
 	//  1 -> bus not idle
 	//  2 -> missing ACK (three times)
-	byte sendInfoMessage(byte, unsigned int, unsigned long);   // channel, info, target address
+	byte sendInfoMessage(byte, uint16_t, uint32_t);   // channel, info, target address
 
 	byte deviceType;        // device type @ 0x7FF1 in FlashRom  TODO: Not really...
 
 	// write to EEPROM, but only if not "value" anyway
 	// the uppermost 4 bytes are reserved for the device address and can only be changed if privileged = true
-	void writeEEPROM(int address, byte value, bool privileged = false );
+	void writeEEPROM(int16_t address, byte value, bool privileged = false );
 
 private:
 	HMWRS485* hmwrs485;

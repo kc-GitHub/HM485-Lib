@@ -60,10 +60,11 @@ public:
 
     // Senderadresse beim Empfangen
     // TODO: Das sollte private sein, wird aber momentan noch vom Modul verwendet
-	unsigned long senderAddress;
+	uint32_t senderAddress;
 
 	// Senden
-	unsigned long txTargetAddress;        // Adresse des Moduls, zu dem gesendet wird
+	uint32_t txTargetAddress;        // Adresse des Moduls, zu dem gesendet wird
+	
 	byte txFrameControlByte;
     byte txFrameDataLength;              // Laenge der Daten + Checksum
 	byte txFrameData[MAX_RX_FRAME_LENGTH];
@@ -80,7 +81,7 @@ private:
 // Empfangene Daten
 	// Empfangen
 	byte frameComplete;
-    unsigned long targetAddress;
+    uint32_t targetAddress;
 	byte frameDataLength;                 // Laenge der Daten
 	byte frameData[MAX_RX_FRAME_LENGTH];
 	byte startByte;
@@ -99,7 +100,7 @@ private:
 
 	void sendFrameSingle();
 	void sendFrameByte(byte);
-	unsigned int crc16Shift(byte, unsigned int);
+	uint16_t crc16Shift(byte, uint16_t);
 };
 
 #endif /* HMWRS485_H_ */
