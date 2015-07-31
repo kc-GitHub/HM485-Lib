@@ -55,14 +55,14 @@ HMWRS485::~HMWRS485() {
 
 
 // eigene Adresse setzen und damit auch random seed
-void HMWRS485::setOwnAddress(unsigned long address) {
+void HMWRS485::setOwnAddress(uint32_t address) {
   ownAddress = address;
   randomSeed(ownAddress);
   minIdleTime = random(DIFS_CONSTANT, DIFS_CONSTANT+DIFS_RANDOM);
 }
 
 
-unsigned long HMWRS485::getOwnAddress() {
+uint32_t HMWRS485::getOwnAddress() {
 	return ownAddress;
 }
 
@@ -149,7 +149,7 @@ byte HMWRS485::sendFrame(boolean onlyIfIdle){
 	return 0;  // we do not wait for an ACK, i.e. always ok
   };
 
-  unsigned long lastTry = 0;
+  uint32_t lastTry = 0;
 
   for(byte i = 0; i < 3; i++) {  // maximal 3 Versuche
     sendFrameSingle();
@@ -196,7 +196,7 @@ void HMWRS485::sendFrameSingle() {
 
       byte tmpByte;
 
-      unsigned int crc16checksum = 0xFFFF;
+      uint16_t crc16checksum = 0xFFFF;
 
  // TODO: Das Folgende nimmt an, dass das ACK zur letzten empfangenen Sendung gehoert
  //       Wahrscheinlich stimmt das immer oder ist egal, da die Gegenseite nicht auf
@@ -214,7 +214,7 @@ void HMWRS485::sendFrameSingle() {
       crc16checksum = crc16Shift(FRAME_START_LONG , crc16checksum);
 
       byte i;
-      unsigned long address = txTargetAddress;
+      uint32_t address = txTargetAddress;
       for( i = 0; i < 4; i++){      // send target address
     	 tmpByte = address >> 24;
          sendFrameByte( tmpByte );
@@ -285,8 +285,8 @@ void HMWRS485::sendAck() {
 
 // calculate crc16 checksum for each byte
 // TODO: Maybe simplify a bit using bitRead()
-unsigned int HMWRS485::crc16Shift(byte newByte , unsigned int oldCrc) {
-  unsigned int crc = oldCrc;
+uint16_t HMWRS485::crc16Shift(byte newByte , uint16_t oldCrc) {
+  uint16_t crc = oldCrc;
   byte stat;
 
   for (byte i = 0; i < 8; i++) {
@@ -319,9 +319,9 @@ unsigned int HMWRS485::crc16Shift(byte newByte , unsigned int oldCrc) {
 void HMWRS485::receive(){
 
   static byte rxStartByte;
-  static unsigned long rxTargetAddress;
+  static uint32_t rxTargetAddress;
   static byte rxFrameControlByte;
-  static unsigned long rxSenderAddress;
+  static uint32_t rxSenderAddress;
   static byte rxFrameDataLength;       // Länger der Daten + Checksum
   static byte rxFrameData[MAX_RX_FRAME_LENGTH];
 
@@ -329,7 +329,7 @@ void HMWRS485::receive(){
   static byte addressLengthLong;
   static byte framePointer;
   static byte addressPointer;
-  static unsigned int crc16checksum;
+  static uint16_t crc16checksum;
 
 // TODO: Kann sich hier zu viel "anstauen", so dass das while vielleicht
 //       nach ein paar Millisekunden unterbrochen werden sollte?
@@ -394,6 +394,11 @@ void HMWRS485::receive(){
          }else if(addressPointer != 0xFF) { // Datenlänge empfangen
             addressPointer = 0xFF;
             rxFrameDataLength = rxByte;
+            if(rxFrameDataLength > MAX_RX_FRAME_LENGTH) // Maximale Puffergöße checken.
+            {
+                frameStatus &= ~FRAME_START;
+                hmwdebug(F("\nPacket size to big - ignore\n"));
+            }
          }else{                   // Daten empfangen
             rxFrameData[framePointer] = rxByte;   // Daten in Puffer speichern
             framePointer++;
