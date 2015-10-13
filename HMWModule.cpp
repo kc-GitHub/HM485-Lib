@@ -28,7 +28,7 @@ HMWModule::~HMWModule() {
 
 // Processing of default events (related to all modules)
 void HMWModule::processEvent(byte const * const frameData, byte frameDataLength, boolean isBroadcast) {
-      unsigned int adrStart;
+      uint16_t adrStart;
       byte sendAck;
 
       // ACKs kommen hier nicht an, werden eine Schicht tiefer abgefangen
@@ -92,7 +92,7 @@ void HMWModule::processEvent(byte const * const frameData, byte frameDataLength,
             if(frameDataLength == 4) {                                // Length of before incoming data must be 4
                sendAck = 0;
                hmwdebug(F("read eeprom"));
-               adrStart = ((unsigned int)(frameData[1]) << 8) | frameData[2];  // start adress of eeprom
+               adrStart = ((uint16_t)(frameData[1]) << 8) | frameData[2];  // start adress of eeprom
                for(byte i = 0; i < frameData[3]; i++) {
             	   hmwrs485->txFrameData[i] = EEPROM.read(adrStart + i);
                };
@@ -100,13 +100,13 @@ void HMWModule::processEvent(byte const * const frameData, byte frameDataLength,
             };
             break;
          case 'S':                                                               // GET Level
-            processEventGetLevel(frameData[1]);
+            processEventGetLevel(frameData[1], frameData[0]);
             sendAck = 2;
             break;
          case 'W':                                                               // Write EEPROM
             if(frameDataLength == frameData[3] + 4) {
             	hmwdebug(F("write eeprom"));
-               adrStart = ((unsigned int)(frameData[1]) << 8) | frameData[2];  // start adress of eeprom
+               adrStart = ((uint16_t)(frameData[1]) << 8) | frameData[2];  // start adress of eeprom
                for(byte i = 4; i < frameDataLength; i++){
             	 writeEEPROM(adrStart+i-4, frameData[i]);
                }
@@ -135,9 +135,9 @@ void HMWModule::processEvent(byte const * const frameData, byte frameDataLength,
          case 'q':                                                               // Zieladresse hinzuf�gen?
             // TODO: ???
         	break;
-         case 's':                                                               // Aktor setzen
-            processEventSetLevel(frameData[1], frameData[2]);
-            break;
+         // case 's':  // 's' (0x73) ist dasselbe wie 'x' (0x78), daher weiter unten implementiert
+        	           // Das widerspricht zwar der Protokoll-Beschreibung, aber bisher haben alle
+        	           // Original-HM-Geraete so reagiert
          case 'u':                                                              // Update (Bootloader starten)
             // Bootloader neu starten
             // Goto $7c00                                                          ' Adresse des Bootloaders
@@ -150,8 +150,12 @@ void HMWModule::processEvent(byte const * const frameData, byte frameDataLength,
             hmwrs485->txFrameData[1] = MODULE_FIRMWARE_VERSION & 0xFF;
             hmwrs485->txFrameDataLength = 2;
             break;
-         case 'x':                                                               // Level set
-            processEventSetLevel(frameData[1], frameData[2]);                                               // Install-Test TODO: ???
+         case 's':   // level set
+         case 'x':   // Level set. In der Protokollbeschreibung steht hier was von "install test",
+        	         // aber es sieht so aus, als ob 0x73 und 0x78 dasselbe tun
+            processEventSetLevel(frameData[1], frameDataLength-2, &(frameData[2]));
+            // get what the hardware did and send it back
+            processEventGetLevel(frameData[1], frameData[0]);  // for feedback
             sendAck = 2;
             break;
 
@@ -177,20 +181,21 @@ void HMWModule::processEventKey(){
 	// TODO
 };
 
-   void HMWModule::processEventSetLevel(byte channel, unsigned int level){
+   void HMWModule::processEventSetLevel(byte channel, byte dataLength, byte const * const data){
 	 // tell the hardware
-     device->setLevel(channel, level);
-     // get what the hardware did and send it back
-     processEventGetLevel(channel);
+	 // deprecated, only for compatibility
+     device->setLevel(channel, data[0]);
+     // now the real stuff
+     device->setLevel(channel, dataLength, data);
    };
 
 
-   void HMWModule::processEventGetLevel(byte channel){
+   void HMWModule::processEventGetLevel(byte channel, byte command){
 	 // get value from the hardware and send it back
 	 hmwrs485->txFrameDataLength = 0x04;      // Length
 	 hmwrs485->txFrameData[0] = 0x69;         // 'i'
 	 hmwrs485->txFrameData[1] = channel;      // Sensornummer
-	 unsigned int info = device->getLevel(channel);
+	 uint16_t info = device->getLevel(channel, command);
 	 hmwrs485->txFrameData[2] = info / 0x100;
 	 hmwrs485->txFrameData[3] = info & 0xFF;
    };
@@ -236,7 +241,7 @@ void HMWModule::processEventKey(){
 
 
    // "Announce-Message" ueber broadcast senden
-   void HMWModule::broadcastAnnounce(byte channel) {
+   byte HMWModule::broadcastAnnounce(byte channel) {
       hmwrs485->txTargetAddress = 0xFFFFFFFF;  // broadcast
       hmwrs485->txFrameControlByte = 0xF8;     // control byte
       hmwrs485->txFrameDataLength = 16;      // Length
@@ -247,12 +252,12 @@ void HMWModule::processEventKey(){
       hmwrs485->txFrameData[4] = MODULE_FIRMWARE_VERSION / 0x100;
       hmwrs485->txFrameData[5] = MODULE_FIRMWARE_VERSION & 0xFF;
       determineSerial(hmwrs485->txFrameData + 6);
-      hmwrs485->sendFrame();
+      return hmwrs485->sendFrame(true);  // only if bus is free
    };
 
    // "Key Pressed" ueber broadcast senden
-   void HMWModule::sendKeyEvent(byte channel, byte keyPressNum, byte longPress,unsigned long target_address,byte targetchannel) {
-	   hmwrs485->txTargetAddress = target_address;  // broadcast
+   byte HMWModule::broadcastKeyEvent(byte channel, byte keyPressNum, byte longPress) {
+	   hmwrs485->txTargetAddress = 0xFFFFFFFF;  // broadcast
 	   hmwrs485->txFrameControlByte = 0xF8;     // control byte
 	   hmwrs485->txFrameDataLength = 0x04;      // Length
 	   hmwrs485->txFrameData[0] = 0x4B;         // 'K'
@@ -260,11 +265,12 @@ void HMWModule::processEventKey(){
 	   hmwrs485->txFrameData[2] = targetchannel;            // Zielaktor
 	   // TODO: Counter
 	   hmwrs485->txFrameData[3] = (longPress ? 3 : 2) + (keyPressNum << 2);
-	   hmwrs485->sendFrame();
+	   return hmwrs485->sendFrame(true);  // only if bus is free
    };
 
-   // "i-Message" ueber broadcast senden
-     void HMWModule::sendInfoMessage(byte channel, unsigned int info, unsigned long target_address) {
+   // "i-Message" senden
+   // this is only called from "outside" and not as a response
+     byte HMWModule::sendInfoMessage(byte channel, uint16_t info, uint32_t target_address) {
   	   hmwrs485->txTargetAddress = target_address;  // normally central or broadcast
   	   hmwrs485->txFrameControlByte = 0xF8;     // control byte
   	   hmwrs485->txFrameDataLength = 0x04;      // Length
@@ -272,11 +278,11 @@ void HMWModule::processEventKey(){
   	   hmwrs485->txFrameData[1] = channel;      // Sensornummer
   	   hmwrs485->txFrameData[2] = info / 0x100;
   	   hmwrs485->txFrameData[3] = info & 0xFF;
-  	   hmwrs485->sendFrame();
+  	   return hmwrs485->sendFrame(true);  // only if bus is free
      };
 
 
-     void HMWModule::writeEEPROM(int address, byte value, bool privileged ) {
+     void HMWModule::writeEEPROM(int16_t address, byte value, bool privileged ) {
        // save uppermost 4 bytes
        if(!privileged && (address > E2END - 4))
     	 return;
@@ -289,19 +295,21 @@ void HMWModule::processEventKey(){
      // read device address from EEPROM
      // TODO: Avoid "central" addresses (like 0000...)
      void HMWModule::readAddressFromEEPROM(){
-       hmwrs485->txSenderAddress = 0;
+       uint32_t address = 0;
+
        for(byte i = 0; i < 4; i++){
-    	 hmwrs485->txSenderAddress <<= 8;
-    	 hmwrs485->txSenderAddress |= EEPROM.read(E2END - 3 + i);
+    	   address <<= 8;
+    	   address |= EEPROM.read(E2END - 3 + i);
        }
-       if(hmwrs485->txSenderAddress == 0xFFFFFFFF)
-    	   hmwrs485->txSenderAddress = 0x42FFFFFF;
+       if(address == 0xFFFFFFFF)
+    	   address = 0x42FFFFFF;
+       hmwrs485->setOwnAddress(address);
      }
 
 
      void HMWModule::determineSerial(byte* buf) {
        char numAsStr[20];
-       sprintf(numAsStr, "%07lu", hmwrs485->txSenderAddress % 10000000L );
+       sprintf(numAsStr, "%07lu", hmwrs485->getOwnAddress() % 10000000L );
        buf[0] = 'H';
        buf[1] = 'B';
        buf[2] = 'W';

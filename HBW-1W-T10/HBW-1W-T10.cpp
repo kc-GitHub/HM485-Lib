@@ -40,13 +40,12 @@
 #define DEBUG_UNO 1    // Hardware-Serial ist Debug-Ausgang, RS485 per Soft auf pins 5/6
 #define DEBUG_UNIV 2   // Hardware-Serial ist RS485, Debug per Soft auf pins 5/6
 
-#define DEBUG_VERSION DEBUG_UNIV
+#define DEBUG_VERSION DEBUG_NONE
 
 // Do not remove the include below
 #include "HBW-1W-T10.h"
 
 #if DEBUG_VERSION == DEBUG_UNO || DEBUG_VERSION == DEBUG_UNIV
-// TODO: Eigene SoftwareSerial
 #include <SoftwareSerial.h>
 #endif
 
@@ -208,7 +207,7 @@ class HMWDevice : public HMWDeviceBase {
       return;  // there is nothing to set
 	}
 
-	unsigned int getLevel(byte channel) {
+	unsigned int getLevel(byte channel, byte command) {
       // there is only one channel for now
 	  int defTemp = DEFAULT_TEMP * 100;
 	  if(channel > MAX_SENSORS) return (unsigned int)(defTemp);
@@ -478,8 +477,20 @@ void setup()
 #if DEBUG_VERSION != DEBUG_NONE
 	printChannelConf();
 #endif
-    // send announce message
-	hmwmodule->broadcastAnnounce(0);
+}
+
+
+// broadcast announce message once at the beginning
+// this might need to "wait" until the bus is free
+void handleBroadcastAnnounce() {
+  static boolean announced = false;
+  // avoid sending broadcast in the first second
+  // we don't care for the overflow as the announce
+  // is sent after 40 days anyway (hopefully)
+  if(millis() < 1000) return;
+  if(announced) return;
+  // send methods return 0 if everything is ok
+  announced = (hmwmodule->broadcastAnnounce(0) == 0);
 }
 
 
@@ -489,6 +500,9 @@ void loop()
 // Daten empfangen und alles, was zur Kommunikationsschicht gehört
 // processEvent vom Modul wird als Callback aufgerufen
    hmwrs485.loop();
+
+// send announce message, if not done yet
+   handleBroadcastAnnounce();
 
  // Temperatur lesen
    handleOneWire();
@@ -505,9 +519,11 @@ void loop()
      if(    (sensors[channel].send_max_interval && now - lastSentTime[channel] >= (long)(sensors[channel].send_max_interval) * 1000)
     	 || (sensors[channel].send_delta_temp
     	         && abs( currentTemp[channel] - lastSentTemp[channel] ) >= (unsigned int)(sensors[channel].send_delta_temp) * 10)) {
-	     hmwmodule->sendInfoMessage(channel,currentTemp[channel], centralAddressGet());
-         lastSentTemp[channel] = currentTemp[channel];
-         lastSentTime[channel] = now;
+         // if bus is busy, we might retry
+    	 if(hmwmodule->sendInfoMessage(channel,currentTemp[channel], centralAddressGet()) != 1) {
+             lastSentTemp[channel] = currentTemp[channel];
+             lastSentTime[channel] = now;
+    	 };
      };
    };
 };
