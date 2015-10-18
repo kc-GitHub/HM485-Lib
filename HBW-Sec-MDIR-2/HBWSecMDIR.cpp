@@ -126,7 +126,7 @@ void HMWDevice::setLevel(byte channel,unsigned int level) {
 
 	}
 
-unsigned int HMWDevice::getLevel(byte channel) {
+unsigned int HMWDevice::getLevel(byte channel, byte command) {
       // everything in the right limits?
 	  if(channel >= 8) return 0;
 	  // read

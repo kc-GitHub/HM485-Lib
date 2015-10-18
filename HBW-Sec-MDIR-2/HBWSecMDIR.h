@@ -44,7 +44,7 @@ class HMWDevice : public HMWDeviceBase {
 	HMWDevice();
 	virtual ~HMWDevice() {};
 	void setLevel(byte channel,unsigned int level);
-	unsigned int getLevel(byte channel);
+	unsigned int getLevel(byte channel, byte command);
 	void readConfig();
 	void setModuleConfig();
 	void deviceLoop();
