@@ -255,19 +255,18 @@ void HMWModule::processEventKey(){
       return hmwrs485->sendFrame(true);  // only if bus is free
    };
 
-   // "Key Pressed" ueber broadcast senden
-   byte HMWModule::broadcastKeyEvent(byte channel, byte keyPressNum, byte longPress) {
-	   hmwrs485->txTargetAddress = 0xFFFFFFFF;  // broadcast
-	   hmwrs485->txFrameControlByte = 0xF8;     // control byte
-	   hmwrs485->txFrameDataLength = 0x04;      // Length
-	   hmwrs485->txFrameData[0] = 0x4B;         // 'K'
-	   hmwrs485->txFrameData[1] = channel;      // Sensornummer
-	   hmwrs485->txFrameData[2] = targetchannel;            // Zielaktor
-	   // TODO: Counter
-	   hmwrs485->txFrameData[3] = (longPress ? 3 : 2) + (keyPressNum << 2);
-	   return hmwrs485->sendFrame(true);  // only if bus is free
+   // "Key Pressed" ueber an Linked Peer senden
+   bool HMWModule::sendKeyEvent(byte channel, byte keyPressNum, bool longPress,unsigned long target_address,byte targetchannel) {
+   	   hmwrs485->txTargetAddress = target_address;  // broadcast
+   	   hmwrs485->txFrameControlByte = 0xF8;     // control byte
+   	   hmwrs485->txFrameDataLength = 0x04;      // Length
+   	   hmwrs485->txFrameData[0] = 0x4B;         // 'K'
+   	   hmwrs485->txFrameData[1] = channel;      // Sensornummer
+   	   hmwrs485->txFrameData[2] = targetchannel;            // Zielaktor
+   	   // TODO: Counter
+   	   hmwrs485->txFrameData[3] = (longPress ? 3 : 2) + (keyPressNum << 2);
+   	   return hmwrs485->sendFrame(true); //only if bus free
    };
-
    // "i-Message" senden
    // this is only called from "outside" and not as a response
      byte HMWModule::sendInfoMessage(byte channel, uint16_t info, uint32_t target_address) {

@@ -20,6 +20,7 @@
 // Abstrakte Basisklasse mit Callbacks aus dem Modul
 class HMWDeviceBase {
   public:
+	virtual ~HMWDeviceBase() {;};
 	virtual void setLevel(byte,uint16_t) {};  // channel, level (deprecated)
 	virtual void setLevel(byte,byte,byte const * const) {};    // channel, data length, data
 	virtual uint16_t getLevel(byte, byte) = 0;  // channel, command (0x78, 0x53), returns level
@@ -28,7 +29,7 @@ class HMWDeviceBase {
 
 class HMWModule : public HMWModuleBase {
 public:
-	#define HMW_TARGET_ADDRESS_BC ((unsigned long) 0xFFFFFFFF)
+	#define HMW_TARGET_ADDRESS_BC ((uint32_t) 0xFFFFFFFF)
 	HMWModule(HMWDeviceBase*, HMWRS485*, byte); // rs485, device type
 	virtual ~HMWModule();
 
@@ -38,7 +39,12 @@ public:
 	// 0 -> everything ok
 	// 1 -> nothing sent because bus busy
 	byte broadcastAnnounce(byte);  // channel
-	byte broadcastKeyEvent(byte, byte, byte = 0);  // channel, keyPressNum, long/short (long = 1)
+	inline byte broadcastKeyEvent(byte channel, byte keyPressNum, byte longPress = 0) {return sendKeyEvent(channel,keyPressNum,longPress);};  // channel, keyPressNum, long/short (long = 1)
+
+	// the broadcast methods return...
+	// true -> everything ok
+	// false -> nothing sent because bus busy
+	bool sendKeyEvent(byte channel, byte keyPressNum, bool longPress = false ,uint32_t target_address = HMW_TARGET_ADDRESS_BC,byte targetchannel = 0);
 
 	// sendInfoMessage returns...
 	//  0 -> ok
