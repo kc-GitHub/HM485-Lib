@@ -6,7 +6,7 @@
 
 #ifndef _HMWHomebrew_H_
 #define _HMWHomebrew_H_
-#include "Arduino.h"
+#include "Platform_Dependencies.h"
 //add your includes for the project HMWHomebrew here
 #include "HBWSecMode.h"
 

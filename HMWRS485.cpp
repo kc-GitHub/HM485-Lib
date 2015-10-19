@@ -11,9 +11,9 @@
 #include "HMWRS485.h"
 #include "HMWDebug.h"
 
-#include "Arduino.h"
+#include "Platform_Dependencies.h"
 
-HMWRS485::HMWRS485(Stream* _serial, byte _txEnablePin) {
+HMWRS485::HMWRS485(Stream* _serial, uint8_t _txEnablePin) {
 	serial = _serial;
 	txEnablePin = _txEnablePin;
 	frameComplete = 0;
@@ -86,8 +86,8 @@ void HMWRS485::loop() {
 boolean HMWRS485::parseFrame () { // returns true, if event needs to be processed by the module
 // Wird aufgerufen, wenn eine komplette Nachricht empfangen wurde
 
-  byte seqNumReceived;
-  byte seqNumSent;
+  uint8_t seqNumReceived;
+  uint8_t seqNumSent;
 
 //### START ACK verarbeiten ###
   if(frameStatus & FRAME_SENTACKWAIT) {   // wir warten auf ACK?
@@ -125,7 +125,7 @@ boolean HMWRS485::parseFrame () { // returns true, if event needs to be processe
 //   0 -> ok
 //   1 -> bus not idle (only if onlyIfIdle)
 //   2 -> three times no ACK (cannot occur for broadcasts or ACKs)
-byte HMWRS485::sendFrame(boolean onlyIfIdle){
+uint8_t HMWRS485::sendFrame(bool onlyIfIdle){
 // TODO: non-blocking
 // TODO: Wenn als Antwort kein reines ACK kommt, dann geht die Antwort verloren
 //       D.h. sie wird nicht interpretiert. Die Gegenstelle sollte es dann nochmal
@@ -151,7 +151,7 @@ byte HMWRS485::sendFrame(boolean onlyIfIdle){
 
   uint32_t lastTry = 0;
 
-  for(byte i = 0; i < 3; i++) {  // maximal 3 Versuche
+  for(uint8_t i = 0; i < 3; i++) {  // maximal 3 Versuche
     sendFrameSingle();
     lastTry = millis();
 // wait for ACK
@@ -194,7 +194,7 @@ void HMWRS485::sendFrameSingle() {
 // TODO: Optimize, do not flush() after each single character
 //       Do not toggle TX pin for each char
 
-      byte tmpByte;
+      uint8_t tmpByte;
 
       uint16_t crc16checksum = 0xFFFF;
 
@@ -203,7 +203,7 @@ void HMWRS485::sendFrameSingle() {
  //       ein ACK wartet. (Da man nicht kein ACK senden kann, ist jeder Wert gleich
  //       gut, wenn keins gesendet werden muss.)
       if(txTargetAddress != 0xFFFFFFFF){
-        byte txSeqNum = (frameControlByte >> 1) & 0x03;
+        uint8_t txSeqNum = (frameControlByte >> 1) & 0x03;
         txFrameControlByte &= 0x9F;
         txFrameControlByte |= (txSeqNum << 5);
       };
@@ -213,7 +213,7 @@ void HMWRS485::sendFrameSingle() {
       serial->write(FRAME_START_LONG);  // send startbyte
       crc16checksum = crc16Shift(FRAME_START_LONG , crc16checksum);
 
-      byte i;
+      uint8_t i;
       uint32_t address = txTargetAddress;
       for( i = 0; i < 4; i++){      // send target address
     	 tmpByte = address >> 24;
@@ -260,7 +260,7 @@ void HMWRS485::sendFrameSingle() {
 // Send a data byte.
 // Before sending check byte for special chars. Special chars are escaped before sending
 // TX-Pin needs to be HIGH before calling this
-void HMWRS485::sendFrameByte(byte sendByte) {
+void HMWRS485::sendFrameByte(uint8_t sendByte) {
 	// Debug
 	hmwdebug(sendByte >> 4, HEX);
 	hmwdebug(sendByte & 15, HEX);
@@ -285,11 +285,11 @@ void HMWRS485::sendAck() {
 
 // calculate crc16 checksum for each byte
 // TODO: Maybe simplify a bit using bitRead()
-uint16_t HMWRS485::crc16Shift(byte newByte , uint16_t oldCrc) {
+uint16_t HMWRS485::crc16Shift(uint8_t newByte , uint16_t oldCrc) {
   uint16_t crc = oldCrc;
-  byte stat;
+  uint8_t stat;
 
-  for (byte i = 0; i < 8; i++) {
+  for (uint8_t i = 0; i < 8; i++) {
     if (crc & 0x8000) {stat = 1;}
     else              {stat = 0;}
     crc = (crc << 1);
@@ -318,17 +318,17 @@ uint16_t HMWRS485::crc16Shift(byte newByte , uint16_t oldCrc) {
 // TODO: Als Interrupt-Routine? Dann geht's nicht mehr per SoftSerial
 void HMWRS485::receive(){
 
-  static byte rxStartByte;
+  static uint8_t rxStartByte;
   static uint32_t rxTargetAddress;
-  static byte rxFrameControlByte;
+  static uint8_t rxFrameControlByte;
   static uint32_t rxSenderAddress;
-  static byte rxFrameDataLength;       // Länger der Daten + Checksum
-  static byte rxFrameData[MAX_RX_FRAME_LENGTH];
+  static uint8_t rxFrameDataLength;       // Lï¿½nger der Daten + Checksum
+  static uint8_t rxFrameData[MAX_RX_FRAME_LENGTH];
 
-  static byte addressLength;
-  static byte addressLengthLong;
-  static byte framePointer;
-  static byte addressPointer;
+  static uint8_t addressLength;
+  static uint8_t addressLengthLong;
+  static uint8_t framePointer;
+  static uint8_t addressPointer;
   static uint16_t crc16checksum;
 
 // TODO: Kann sich hier zu viel "anstauen", so dass das while vielleicht
@@ -339,7 +339,7 @@ void HMWRS485::receive(){
 //  carrier sense
 	lastReceivedTime = millis();
 
-    byte rxByte = serial->read();    // von Serial oder SoftSerial
+    uint8_t rxByte = serial->read();    // von Serial oder SoftSerial
 
     // Debug
     if( rxByte == 0xFD ) hmwdebug(F("\nReceiving \n"));
@@ -391,10 +391,10 @@ void HMWRS485::receive(){
         	rxSenderAddress <<= 8;
         	rxSenderAddress |= rxByte;
             addressPointer++;
-         }else if(addressPointer != 0xFF) { // Datenlänge empfangen
+         }else if(addressPointer != 0xFF) { // Datenlï¿½nge empfangen
             addressPointer = 0xFF;
             rxFrameDataLength = rxByte;
-            if(rxFrameDataLength > MAX_RX_FRAME_LENGTH) // Maximale Puffergöße checken.
+            if(rxFrameDataLength > MAX_RX_FRAME_LENGTH) // Maximale Puffergï¿½ï¿½e checken.
             {
                 frameStatus &= ~FRAME_START;
                 hmwdebug(F("\nPacket size to big - ignore\n"));
@@ -406,7 +406,7 @@ void HMWRS485::receive(){
                if(crc16checksum == 0) {    //
             	  frameStatus &= ~FRAME_START;
                   // frameStatus |= FRAME_CRCOK;  TODO: remove, if not needed
-                  // Framedaten für die spätere Verarbeitung speichern
+                  // Framedaten fï¿½r die spï¿½tere Verarbeitung speichern
                   // TODO: Braucht man das wirklich?
                   //       Moeglicherweise braucht man das nur, wenn mit Interrupts gearbeitet wird
                   startByte = rxStartByte;

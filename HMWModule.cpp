@@ -11,9 +11,9 @@
 #include "HMWModule.h"
 #include "HMWDebug.h"
 
-#include <EEPROM.h>
+#include "Platform_Dependencies.h"
 
-HMWModule::HMWModule(HMWDeviceBase* _device, HMWRS485* _hmwrs485, byte _deviceType) {
+HMWModule::HMWModule(HMWDeviceBase* _device, HMWRS485* _hmwrs485, uint8_t _deviceType) {
   device = _device;
   hmwrs485 = _hmwrs485;
   hmwrs485->module = this;   // fuer callbacks von Kommunikationsschicht
@@ -27,9 +27,9 @@ HMWModule::~HMWModule() {
 }
 
 // Processing of default events (related to all modules)
-void HMWModule::processEvent(byte const * const frameData, byte frameDataLength, boolean isBroadcast) {
+void HMWModule::processEvent(uint8_t const * const frameData, uint8_t frameDataLength, boolean isBroadcast) {
       uint16_t adrStart;
-      byte sendAck;
+      uint8_t sendAck;
 
       // ACKs kommen hier nicht an, werden eine Schicht tiefer abgefangen
 
@@ -62,7 +62,7 @@ void HMWModule::processEvent(byte const * const frameData, byte frameDataLength,
          case '@':                                      // HBW-specifics
            if(frameData[1] == 'a' && frameDataLength == 6) {  // "a" -> address set
         	 // TODO: Avoid "central" addresses (like 0000...)
-        	 for(byte i = 0; i < 4; i++)
+        	 for(uint8_t i = 0; i < 4; i++)
         	   writeEEPROM(E2END - 3 + i, frameData[i + 2], true);
            };
            readAddressFromEEPROM();
@@ -93,7 +93,7 @@ void HMWModule::processEvent(byte const * const frameData, byte frameDataLength,
                sendAck = 0;
                hmwdebug(F("read eeprom"));
                adrStart = ((uint16_t)(frameData[1]) << 8) | frameData[2];  // start adress of eeprom
-               for(byte i = 0; i < frameData[3]; i++) {
+               for(uint8_t i = 0; i < frameData[3]; i++) {
             	   hmwrs485->txFrameData[i] = EEPROM.read(adrStart + i);
                };
                hmwrs485->txFrameDataLength = frameData[3];
@@ -107,7 +107,7 @@ void HMWModule::processEvent(byte const * const frameData, byte frameDataLength,
             if(frameDataLength == frameData[3] + 4) {
             	hmwdebug(F("write eeprom"));
                adrStart = ((uint16_t)(frameData[1]) << 8) | frameData[2];  // start adress of eeprom
-               for(byte i = 4; i < frameDataLength; i++){
+               for(uint8_t i = 4; i < frameDataLength; i++){
             	 writeEEPROM(adrStart+i-4, frameData[i]);
                }
             };
@@ -181,7 +181,7 @@ void HMWModule::processEventKey(){
 	// TODO
 };
 
-   void HMWModule::processEventSetLevel(byte channel, byte dataLength, byte const * const data){
+   void HMWModule::processEventSetLevel(uint8_t channel, uint8_t dataLength, uint8_t const * const data){
 	 // tell the hardware
 	 // deprecated, only for compatibility
      device->setLevel(channel, data[0]);
@@ -190,7 +190,7 @@ void HMWModule::processEventKey(){
    };
 
 
-   void HMWModule::processEventGetLevel(byte channel, byte command){
+   void HMWModule::processEventGetLevel(uint8_t channel, uint8_t command){
 	 // get value from the hardware and send it back
 	 hmwrs485->txFrameDataLength = 0x04;      // Length
 	 hmwrs485->txFrameData[0] = 0x69;         // 'i'
@@ -206,11 +206,11 @@ void HMWModule::processEventKey(){
    };
 
 
-   void HMWModule::processEmessage(byte const * const frameData) {
+   void HMWModule::processEmessage(uint8_t const * const frameData) {
 	 // process E-Message
 
-     byte blocksize = frameData[3];
-     byte blocknum  = frameData[4];
+     uint8_t blocksize = frameData[3];
+     uint8_t blocknum  = frameData[4];
 
      // length of response
      hmwrs485->txFrameDataLength = 4 + blocknum / 8;
@@ -227,10 +227,11 @@ void HMWModule::processEventKey(){
      hmwrs485->txFrameData[2]  = frameData[2];
      hmwrs485->txFrameData[3]  = frameData[3];
 
+     //TODO check if it work
      // determine whether blocks are used
-     for(int block = 0; block <= blocknum; block++) {
+     for(uint8_t block = 0; block <= blocknum; block++) {
        // check this memory block
-       for(int byteIdx = 0; byteIdx < blocksize; byteIdx++) {
+       for(uint8_t byteIdx = 0; byteIdx < blocksize; byteIdx++) {
     	 if(EEPROM.read(block * blocksize + byteIdx) != 0xFF) {
     	   bitSet(hmwrs485->txFrameData[4 + block / 8], block % 8);
     	   break;
@@ -241,7 +242,7 @@ void HMWModule::processEventKey(){
 
 
    // "Announce-Message" ueber broadcast senden
-   byte HMWModule::broadcastAnnounce(byte channel) {
+   uint8_t HMWModule::broadcastAnnounce(uint8_t channel) {
       hmwrs485->txTargetAddress = 0xFFFFFFFF;  // broadcast
       hmwrs485->txFrameControlByte = 0xF8;     // control byte
       hmwrs485->txFrameDataLength = 16;      // Length
@@ -256,7 +257,7 @@ void HMWModule::processEventKey(){
    };
 
    // "Key Pressed" ueber an Linked Peer senden
-   bool HMWModule::sendKeyEvent(byte channel, byte keyPressNum, bool longPress,unsigned long target_address,byte targetchannel) {
+   uint8_t HMWModule::sendKeyEvent(uint8_t channel, uint8_t keyPressNum, bool longPress,unsigned long target_address,uint8_t targetchannel) {
    	   hmwrs485->txTargetAddress = target_address;  // broadcast
    	   hmwrs485->txFrameControlByte = 0xF8;     // control byte
    	   hmwrs485->txFrameDataLength = 0x04;      // Length
@@ -269,7 +270,7 @@ void HMWModule::processEventKey(){
    };
    // "i-Message" senden
    // this is only called from "outside" and not as a response
-     byte HMWModule::sendInfoMessage(byte channel, uint16_t info, uint32_t target_address) {
+     uint8_t HMWModule::sendInfoMessage(uint8_t channel, uint16_t info, uint32_t target_address) {
   	   hmwrs485->txTargetAddress = target_address;  // normally central or broadcast
   	   hmwrs485->txFrameControlByte = 0xF8;     // control byte
   	   hmwrs485->txFrameDataLength = 0x04;      // Length
@@ -281,7 +282,7 @@ void HMWModule::processEventKey(){
      };
 
 
-     void HMWModule::writeEEPROM(int16_t address, byte value, bool privileged ) {
+     void HMWModule::writeEEPROM(int16_t address, uint8_t value, bool privileged ) {
        // save uppermost 4 bytes
        if(!privileged && (address > E2END - 4))
     	 return;
@@ -296,7 +297,7 @@ void HMWModule::processEventKey(){
      void HMWModule::readAddressFromEEPROM(){
        uint32_t address = 0;
 
-       for(byte i = 0; i < 4; i++){
+       for(uint8_t i = 0; i < 4; i++){
     	   address <<= 8;
     	   address |= EEPROM.read(E2END - 3 + i);
        }
@@ -306,7 +307,7 @@ void HMWModule::processEventKey(){
      }
 
 
-     void HMWModule::determineSerial(byte* buf) {
+     void HMWModule::determineSerial(uint8_t* buf) {
        char numAsStr[20];
        sprintf(numAsStr, "%07lu", hmwrs485->getOwnAddress() % 10000000L );
        buf[0] = 'H';

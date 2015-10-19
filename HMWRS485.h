@@ -8,7 +8,7 @@
 #ifndef HMWRS485_H_
 #define HMWRS485_H_
 
-#include "Arduino.h"
+#include "Platform_Dependencies.h"
 
 #define MAX_RX_FRAME_LENGTH 64
 // bus must be idle 210 + rand(0..100) ms
@@ -30,13 +30,13 @@ class HMWModuleBase {
 // processEvent wird nur aufgerufen, wenn es fuer das Modul was zu tun gibt
 // Also nicht fuer ACKs oder duplicates
 // TODO: Should return whether an ACK is needed or not
-	virtual void processEvent(byte const * const frameData, byte frameDataLength, boolean isBroadcast = false) = 0;  // Data, broadcast-Flag
+	virtual void processEvent(uint8_t const * const frameData, uint8_t frameDataLength, boolean isBroadcast = false) = 0;  // Data, broadcast-Flag
 };
 
 
 class HMWRS485 {
 public:
-	HMWRS485(Stream*, byte);  // RS485 interface, TX-Enable Pin
+	HMWRS485(Stream*, uint8_t);  // RS485 interface, TX-Enable Pin
 	virtual ~HMWRS485();
 
 	void loop(); // main loop, die immer wieder aufgerufen werden muss
@@ -47,7 +47,7 @@ public:
 	//   0 -> ok
 	//   1 -> bus not idle (only if onlyIfIdle)
 	//   2 -> three times no ACK (cannot occur for broadcasts or ACKs)
-	byte sendFrame(boolean onlyIfIdle = false);
+	uint8_t sendFrame(bool onlyIfIdle = false);
 	void sendAck();  // ACK fuer gerade verarbeitete Message senden
 
 	// eigene Adresse setzen und damit auch random seed
@@ -65,27 +65,27 @@ public:
 	// Senden
 	uint32_t txTargetAddress;        // Adresse des Moduls, zu dem gesendet wird
 	
-	byte txFrameControlByte;
-    byte txFrameDataLength;              // Laenge der Daten + Checksum
-	byte txFrameData[MAX_RX_FRAME_LENGTH];
+	uint8_t txFrameControlByte;
+    uint8_t txFrameDataLength;              // Laenge der Daten + Checksum
+	uint8_t txFrameData[MAX_RX_FRAME_LENGTH];
 
 private:
 // Das eigentliche RS485-Interface, kann SoftSerial oder (Hardware)Serial sein
 	Stream* serial;
 // Pin-Nummer fuer "TX-Enable"
-	byte txEnablePin;
+	uint8_t txEnablePin;
 	// Empfangs-Status
-	byte frameStatus;
+	uint8_t frameStatus;
 // eigene Adresse
 	unsigned long ownAddress;
 // Empfangene Daten
 	// Empfangen
-	byte frameComplete;
+	uint8_t frameComplete;
     uint32_t targetAddress;
-	byte frameDataLength;                 // Laenge der Daten
-	byte frameData[MAX_RX_FRAME_LENGTH];
-	byte startByte;
-	byte frameControlByte;
+	uint8_t frameDataLength;                 // Laenge der Daten
+	uint8_t frameData[MAX_RX_FRAME_LENGTH];
+	uint8_t startByte;
+	uint8_t frameControlByte;
 
 // carrier sense
 //  last time we have received anything
@@ -99,8 +99,8 @@ private:
 	boolean parseFrame();
 
 	void sendFrameSingle();
-	void sendFrameByte(byte);
-	uint16_t crc16Shift(byte, uint16_t);
+	void sendFrameByte(uint8_t);
+	uint16_t crc16Shift(uint8_t, uint16_t);
 };
 
 #endif /* HMWRS485_H_ */

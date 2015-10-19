@@ -51,6 +51,7 @@
 #define DEBUG_UNO 1    // Hardware-Serial ist Debug-Ausgang, RS485 per Soft auf pins 5/6
 #define DEBUG_UNIV 2   // Hardware-Serial ist RS485, Debug per Soft auf pins 5/6
 
+#define DEBUG_VERSION DEBUG_UNIV
 // Do not remove the include below
 #include "HBWSecMDIR.h"
 
