@@ -7,9 +7,8 @@ Anstelle eines Arduino mit RS485-Interface kann auch der Universalsensor verwend
 http://www.fhemwiki.de/wiki/Universalsensor
 
 
-Damit FHEM das Homebrew-Device richtig erkennt, muss die HBW-Sen-EP.pm Datei in den Ordner \FHEM\lib\HM485\Devices kopiert werden (Das Device gibt sich als HW-Typ 0x84 aus).
-Config der Sendehäufigkeit kann über das FHEM-Webfrontend vorgenommen werden. In dem Modul Device.pm kann es dabei noch zu einer fehlerhaften Berechnung der EEPROM-Adressen kommen.
-Abhilfe schafft die beigefügte Datei Device.pm mit der die original Datei ersetzt werden muss.
+Damit FHEM das Homebrew-Device richtig erkennt, muss die Datei hbw_sen_ep.xml in den Ordner \FHEM\lib\HM485\Devices\xml kopiert werden (Das Device gibt sich als HW-Typ 0x84 aus).
+Config der Sendehäufigkeit kann über das FHEM-Webfrontend vorgenommen werden. 
 
 Standard-Pinbelegung:
 0 - Rx RS485
