@@ -1,0 +1,65 @@
+<?xml version="1.0"?>
+<device eep_size="1024" version="12">
+<supported_types>
+	<type priority="2" id="HBW-Sen-EP" name="Homebrew Wired S0-Interface (8-fach)">
+		<parameter const_value="132" size="1" index="0"/>
+		<parameter const_value="0" size="1" index="1"/>
+		<parameter const_value="0x0100" size="2" index="2" cond_op="GE"/>
+	</type>
+</supported_types>
+
+<paramset id="HBW_Sen_EP_dev_master" type="MASTER">
+	<parameter id="CENTRAL_ADDRESS" hidden="true">
+		<logical type="integer"/>
+		<physical size="4" type="integer" interface="eeprom">
+			<address index="0x0002"/>
+		</physical>
+	</parameter>
+</paramset>
+
+<frames>
+	<frame id="LEVEL_GET" type="#S" channel_field="10" direction="to_device">
+	</frame>
+	<frame id="INFO_LEVEL" type="#i" channel_field="10" direction="from_device" event="true">
+		<parameter size="2.0" index="11.0" type="integer" param="STATE"/>
+	</frame>
+</frames>
+
+<channels>
+	<channel index="0" type="MAINTENANCE" count="1" class="maintenance" ui_flags="internal">
+	</channel>	
+	<channel index="1" type="COUNTER_INPUT" count="8" physical_index_offset="-1">
+		<paramset id="hbw_input_ch_master" type="MASTER" address_step="6" address_start="0x07">
+		    <parameter id="SEND_DELTA_COUNT">
+                <logical type="integer" default="1" min="1" max="1000"/>
+                <physical size="2.0" type="integer" interface="eeprom" endian="little">
+                    <address index="0.0"/>
+                </physical>
+            </parameter>
+			<parameter id="SEND_MIN_INTERVAL">
+                 <logical type="integer" default="0" min="0" max="3600" unit="s"/>
+                <physical size="2.0" type="integer" interface="eeprom" endian="little">
+                    <address index="+2.0"/>
+                </physical>
+            </parameter>
+			<parameter id="SEND_MAX_INTERVAL">
+                 <logical type="integer" default="600" min="5" max="3600" unit="s"/>
+                <physical size="2.0" type="integer" interface="eeprom" endian="little">
+                    <address index="+4.0"/>
+                </physical>
+            </parameter>
+		</paramset>
+		<paramset id="hbw_input_ch_values" type="VALUES">
+			<parameter id="COUNTER" operations="read,event" control="NONE">
+				<logical type="integer" min="0" max="65535"/>
+				<physical type="integer" interface="command" value_id="STATE">
+				    <get request="LEVEL_GET" response="INFO_LEVEL"/>
+					<event frame="INFO_LEVEL"/>
+				</physical>
+			</parameter>
+		</paramset>
+	</channel>	
+	
+</channels>
+
+</device>
