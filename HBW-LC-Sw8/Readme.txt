@@ -8,7 +8,7 @@ Anstelle eines Arduino mit RS485-Interface kann auch der Universalsensor verwend
 http://www.fhemwiki.de/wiki/Universalsensor
 
 
-Damit FHEM das Homebrew-Device richtig erkennt, muss die HBW-LC-Sw8.pm Datei in den Ordner \FHEM\lib\HM485\Devices kopiert werden (Das Device gibt sich als HW-Typ 0x83 aus).
+Damit FHEM das Homebrew-Device richtig erkennt, muss die hbw_lc_sw8.xml Datei in den Ordner \FHEM\lib\HM485\Devices\xml kopiert werden (Das Device gibt sich als HW-Typ 0x83 aus).
 
 Standard-Pinbelegung:
 0 - Rx RS485
