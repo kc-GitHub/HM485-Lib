@@ -9,6 +9,19 @@
 //*******************************************************************
 
 
+/**********************
+** History           **
+***********************
+
+  v2
+  - Datentyp bei KeyEvent geändert - Tastendruck bei Peering kommt jetzt an
+  v3
+  - getlevel Funktion korrigiert
+
+*/
+
+
+#define DEVICE_ID 0x83
 /********************************/
 /* Pinbelegung: 				*/
 /********************************/
@@ -31,7 +44,7 @@
 #define DEBUG_UNO 1    // Hardware-Serial ist Debug-Ausgang, RS485 per Soft auf pins 5/6
 #define DEBUG_UNIV 2   // Hardware-Serial ist RS485, Debug per Soft auf pins 5/6
 
-#define DEBUG_VERSION DEBUG_UNIV
+#define DEBUG_VERSION DEBUG_NONE
 
 #if DEBUG_VERSION == DEBUG_UNO
   #define RS485_RXD 5
@@ -60,7 +73,7 @@
 #include "HMWDebug.h"
 
 // OneWire
-#include <OneWire.h>
+//#include <OneWire.h>
 
 // EEPROM
 #include <EEPROM.h>
@@ -140,7 +153,7 @@ class HMWDevice : public HMWDeviceBase {
 		if(channel >= CHANNEL_IO_COUNT) return;
 		if(level > 255) return;
 		// now set pin
-		CHANNEL_PORTS
+		CHANNEL_PORTS   // create array 'channelPorts'
 		if(level == 0xFF) { // toggle
 			digitalWrite(channelPorts[channel], !digitalRead(channelPorts[channel]));
 		}else if(level) // on
@@ -151,14 +164,33 @@ class HMWDevice : public HMWDeviceBase {
 	}
 
 
-	unsigned int getLevel(byte channel) {
+	byte getLevel(byte channel) {
 		// everything in the right limits?
 		if(channel >= CHANNEL_IO_COUNT) return 0;
 		// read
-		CHANNEL_PORTS
-		if(digitalRead(channelPorts[channel]) ^ config.switches[channel].invert) return 0xC800;
+		CHANNEL_PORTS   // create array 'channelPorts'
+		if(digitalRead(channelPorts[channel]) ^ config.switches[channel].invert) return 100;
 		else return 0;
 	};
+
+
+
+
+  void processKey(byte targetChannel, byte longPress) {
+
+    if (longPress) {
+      hmwdebug("Long key press, Channel ");
+      hmwdebug(targetChannel); hmwdebug("\n");
+    }
+    else { // shortPress
+      hmwdebug("Short key press, Channel ");
+      hmwdebug(targetChannel); hmwdebug("\n");
+
+      // Toggle
+      setLevel(targetChannel, 0xFF);
+    }
+  }
+
 
 
 
@@ -324,7 +356,7 @@ void setup()
    // config aus EEPROM lesen
    hmwdevice.readConfig();
 
-   CHANNEL_PORTS
+   CHANNEL_PORTS   // create array 'channelPorts'
    for (byte channel = 0; channel < CHANNEL_IO_COUNT; channel++) {
 	   pinMode(channelPorts[channel],OUTPUT);
 	   digitalWrite(channelPorts[channel], LOW ^ config.switches[channel].invert);
@@ -332,9 +364,7 @@ void setup()
 
 
 
-	// device type: 0x81
-   // TODO: Modultyp irgendwo als define
- 	hmwmodule = new HMWModule(&hmwdevice, &hmwrs485, 0x83);
+ 	hmwmodule = new HMWModule(&hmwdevice, &hmwrs485, DEVICE_ID);
 
     hmwdebug("Huhu\n");
 

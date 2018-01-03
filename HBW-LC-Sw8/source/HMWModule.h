@@ -21,7 +21,8 @@
 class HMWDeviceBase {
   public:
 	virtual void setLevel(byte,unsigned int) = 0;  // channel, level
-	virtual unsigned int getLevel(byte) = 0;       // channel, returns level
+	virtual byte getLevel(byte) = 0;       // channel, returns level
+	virtual void processKey(unsigned char, byte) = 0;
 	virtual void readConfig() = 0;         // read config from EEPROM
 };
 
@@ -50,7 +51,7 @@ private:
 	void readAddressFromEEPROM();
 	void determineSerial(byte*);
 
-	void processEventKey();
+	void processEventKey(unsigned char targetChannel, byte longPress);
     void processEventSetLevel(byte channel, unsigned int level);
 	void processEventGetLevel(byte channel);
 	void processEventSetLock();
