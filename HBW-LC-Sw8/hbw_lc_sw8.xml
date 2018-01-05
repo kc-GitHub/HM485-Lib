@@ -41,30 +41,6 @@
 		<parameter size="1.0" index="11.0" type="integer" param="LEVEL"/>
 		<parameter type="integer" index="12.4" size="0.3" param="STATE_FLAGS"/>
 	</frame>
-<!-- added -->
-	<frame id="KEY_EVENT_SHORT" type="#K" channel_field="10" direction="from_device" event="true">
-		<parameter const_value="0" size="0.1" index="12.0" type="integer"/>
-		<parameter size="0.6" index="12.2" type="integer" param="COUNTER"/>
-	</frame>
-	<frame id="KEY_EVENT_LONG" type="#K" channel_field="10" direction="from_device" event="true">
-		<parameter const_value="1" size="0.1" index="12.0" type="integer"/>
-		<parameter size="0.6" index="12.2" type="integer" param="COUNTER"/>
-	</frame>
-	<frame id="KEY_SIM_SHORT" type="#K" channel_field="10" direction="from_device" receiver_channel_field="11">
-		<parameter const_value="0" size="0.1" index="12.0" type="integer"/>
-		<parameter size="0.6" index="12.2" type="integer" param="COUNTER"/>
-	</frame>
-	<frame id="KEY_SIM_LONG" type="#K" channel_field="10" direction="from_device" receiver_channel_field="11">
-		<parameter const_value="1" size="0.1" index="12.0" type="integer"/>
-		<parameter size="0.6" index="12.2" type="integer" param="COUNTER"/>
-	</frame>
-	<frame id="SET_LOCK" type="#l" channel_field="11" direction="to_device">
-		<parameter param="inhibit" size="1.0" index="12.0" type="integer"/>
-	</frame>
-	<frame id="TOGGLE_INSTALL_TEST" type="#x" channel_field="10" direction="to_device">
-		<parameter param="toggle_flag" size="1.0" index="11.0" type="integer"/>
-	</frame>
-<!-- added -->
 </frames>
 <channels>
 	<channel index="0" type="MAINTENANCE" count="1" class="maintenance" ui_flags="internal">
@@ -100,13 +76,11 @@
 			</parameter>
 			
 			<parameter id="INVERTED">
-				<logical type="option">
-					<option id="OFF" default="true"/>
-					<option id="ON"/>
-				</logical>
+				<logical type="boolean" default="true"/>
 				<physical size="0.1" type="integer" interface="eeprom">
 					<address index="+1"/>
 				</physical>
+				<conversion type="boolean_integer" invert="false"/>
 			</parameter>			
 			
 		</paramset>
