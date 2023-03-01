@@ -1,7 +1,7 @@
 HM485-Lib
 =========
 
-##Outdated / Not maintained anymore.
+## Outdated / Not maintained anymore.
 Please use:
 https://github.com/ThorstenPferdekaemper/HBWired
 
