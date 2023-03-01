@@ -4,10 +4,21 @@
 //
 // Homematic Wired Hombrew Hardware
 // Arduino Uno als Homematic-Device
-// HBW-LC-Sw8
+// HBW-LC-BL4
 //
 //*******************************************************************
 
+/*******************************
+** History                    **
+********************************
+
+v2
+- Init-Werte in Setup-Funktion ergänzt
+- Datentyp bei KeyEvent geändert - Tastendruck bei Peering kommt jetzt an
+
+*/
+
+#define DEVICE_ID 0x82
 
 /********************************/
 /* Pinbelegung: 				*/
@@ -31,7 +42,7 @@
 #define DEBUG_UNO 1    // Hardware-Serial ist Debug-Ausgang, RS485 per Soft auf pins 5/6
 #define DEBUG_UNIV 2   // Hardware-Serial ist RS485, Debug per Soft auf pins 5/6
 
-#define DEBUG_VERSION DEBUG_UNIV
+#define DEBUG_VERSION DEBUG_NONE
 
 #if DEBUG_VERSION == DEBUG_UNO
   #define RS485_RXD 5
@@ -73,7 +84,7 @@
 #include "HMWDebug.h"
 
 // OneWire
-#include <OneWire.h>
+//#include <OneWire.h>
 
 // EEPROM
 #include <EEPROM.h>
@@ -303,16 +314,20 @@ class HMWDevice : public HMWDeviceBase {
 
 	byte getLevel(byte channel) {
 
-		//return blindPositionRequested[channel];
-		getCurrentPosition(channel);
-		return blindPositionActual[channel];
+		if (blindNextState[channel] == STOP) {	    // wenn Rollo gestopppt wird,
 
+			getCurrentPosition(channel);
+			return blindPositionActual[channel];    // dann aktuelle Position ausgeben,
+		}
+		else {
+			return blindPositionRequested[channel];	// ansonsten die angeforderte Zielposition
+		}
 	};
 
 
 
 
-	void processKey(unsigned char targetChannel, byte longPress) {
+	void processKey(byte targetChannel, byte longPress) {
 
 		if (longPress) {
 			hmwdebug("Long key press, Channel ");
@@ -498,7 +513,6 @@ void handleBlind() {
 
 	now = millis();
 	for (byte channel = 0; channel < 4; channel++) {
-//  for (byte channel = 0; channel < 4; channel++) {
 
 		if ((blindForceNextState[channel] == true) || (now >= blindTimeNextState[channel])) {
 
@@ -588,8 +602,8 @@ void handleBlind() {
 				}
 
 				// send info message with current position
-				hmwmodule->sendInfoMessage(channel, blindPositionActual[channel], 0xFFFFFFFF);
-
+				//hmwmodule->sendInfoMessage(channel, blindPositionActual[channel], 0xFFFFFFFF);
+				hmwmodule->sendInfoMessage(channel, 512 * blindPositionActual[channel], 0xFFFFFFFF);
 				// switch off the "active" relay
 				digitalWrite(blindAct[channel], OFF);
 
@@ -655,6 +669,21 @@ void handleBlind() {
 
 void setup()
 {
+	for (byte channel = 0; channel < 4; channel++) {
+		pinMode(blindAct[channel],OUTPUT);
+		digitalWrite(blindAct[channel],OFF);
+		pinMode(blindDir[channel],OUTPUT);
+		digitalWrite(blindDir[channel],OFF);
+		blindNextState[channel] = RELAIS_OFF;
+		blindCurrentState[channel] = RELAIS_OFF;
+		blindForceNextState[channel] = false;
+		blindPositionKnown[channel] = false;
+		blindPositionActual[channel] = 0;
+		blindAngleActual[channel] = 0;
+		blindDirection[channel] = UP;
+		blindSearchingForRefPosition[channel] = false;
+	}
+	
 #if DEBUG_VERSION == DEBUG_UNO
 	pinMode(RS485_RXD, INPUT);
 	pinMode(RS485_TXD, OUTPUT);
@@ -686,24 +715,12 @@ void setup()
     hmwdevice.readConfig();
 
 
-	// device type: 0x81
-	// TODO: Modultyp irgendwo als define
-	hmwmodule = new HMWModule(&hmwdevice, &hmwrs485, 0x82);
+	hmwmodule = new HMWModule(&hmwdevice, &hmwrs485, DEVICE_ID);
 
     delay(1000);
 	hmwdebug("Huhu\n");
 
 	for (byte channel = 0; channel < 4; channel++) {
-		pinMode(blindAct[channel],OUTPUT);
-		digitalWrite(blindAct[channel],OFF);
-		pinMode(blindDir[channel],OUTPUT);
-		digitalWrite(blindDir[channel],OFF);
-		blindNextState[channel] = RELAIS_OFF;
-		blindCurrentState[channel] = RELAIS_OFF;
-		blindForceNextState[channel] = false;
-		blindPositionKnown[channel] = false;
-		blindPositionActual[channel] = 0;
-		blindSearchingForRefPosition[channel] = false;
 		hmwdebug("Channel "); hmwdebug(channel); hmwdebug("\n");
 		hmwdebug("TimeTopBottom: "); hmwdebug(blindTimeTopBottom[channel], DEC); hmwdebug("\n");
 		hmwdebug("TimeBottomTop: "); hmwdebug(blindTimeBottomTop[channel], DEC); hmwdebug("\n");
@@ -748,7 +765,6 @@ void loop()
 	handleBlind();
 
 };
-
 
 
 

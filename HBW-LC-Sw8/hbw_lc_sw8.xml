@@ -1,0 +1,122 @@
+<?xml version="1.0"?>
+<device eep_size="1024" version="12">
+<supported_types>
+	<type priority="2" id="HBW_LC_Sw8" name="Homebrew RS485 switch actuator 8-channel">
+		<parameter const_value="0x83" size="1" index="0"/>
+		<parameter const_value="0" size="1" index="1"/>
+		<parameter const_value="0x0303" size="2" cond_op="GE" index="2"/>
+	</type>
+</supported_types>
+
+<paramset id="HBW_LC_Sw8_master" type="MASTER">
+	<parameter id="LOGGING_TIME">
+		<logical type="float" unit="s" default="2.0" max="25.5" min="0.1"/>
+		<physical size="1.0" type="integer" interface="eeprom">
+			<address index="0x0001"/>
+		</physical>
+		<conversion type="float_integer_scale" offset="0.0" factor="10"/>
+	</parameter>
+	<parameter id="CENTRAL_ADDRESS" hidden="true">
+		<logical type="integer"/>
+		<physical size="4" type="integer" interface="eeprom">
+			<address index="0x0002"/>
+		</physical>
+	</parameter>
+	<parameter id="DIRECT_LINK_DEACTIVATE" hidden="true">
+		<logical type="boolean" default="false"/>
+		<physical interface="eeprom" size="0.1" type="integer">
+			<address index="0x0006"/>
+		</physical>	
+	</parameter>
+	<enforce id="CENTRAL_ADDRESS" value="1"/>
+	<enforce id="DIRECT_LINK_DEACTIVATE" value="true"/>
+</paramset>
+
+<frames>
+	<frame id="LEVEL_SET" type="#x" channel_field="10" direction="to_device">
+		<parameter size="1.0" index="11.0" type="integer" param="LEVEL"/>
+	</frame>
+	<frame id="LEVEL_GET" type="#S" channel_field="10" direction="to_device"/>
+	<frame id="INFO_LEVEL" type="#i" channel_field="10" direction="from_device" event="true">
+		<parameter size="1.0" index="11.0" type="integer" param="LEVEL"/>
+		<parameter type="integer" index="12.4" size="0.3" param="STATE_FLAGS"/>
+	</frame>
+</frames>
+<channels>
+	<channel index="0" type="MAINTENANCE" count="1" class="maintenance" ui_flags="internal">
+		<paramset id="maint_ch_master" type="MASTER"/>
+		<paramset id="maint_ch_values" type="VALUES">
+			<parameter id="UNREACH" ui_flags="service" operations="read,event">
+				<logical type="boolean"/>
+				<physical type="integer" interface="internal" value_id="UNREACH"/>
+			</parameter>
+			<parameter id="STICKY_UNREACH" ui_flags="service" operations="read,write,event">
+				<logical type="boolean"/>
+				<physical type="integer" interface="internal" value_id="STICKY_UNREACH"/>
+			</parameter>
+			<parameter id="CONFIG_PENDING" ui_flags="service" operations="read,event">
+				<logical type="boolean"/>
+				<physical type="integer" interface="internal" value_id="CONFIG_PENDING"/>
+			</parameter>
+		</paramset>
+	</channel>
+	<channel index="1" type="SWITCH" count="8" physical_index_offset="-1">
+	<link_roles>
+		<target name="SWITCH"/>
+	</link_roles>
+     	<paramset id="hmw_switch_ch_master" type="MASTER" address_step="2" address_start="0x07">
+			<parameter id="LOGGING">
+				<logical type="option">
+					<option id="OFF"/>
+					<option id="ON" default="true"/>
+				</logical>
+				<physical size="0.1" type="integer" interface="eeprom">
+					<address index="+0"/>
+				</physical>
+			</parameter>
+			
+			<parameter id="INVERTED">
+				<logical type="boolean" default="true"/>
+				<physical size="0.1" type="integer" interface="eeprom">
+					<address index="+1"/>
+				</physical>
+				<conversion type="boolean_integer" invert="false"/>
+			</parameter>			
+			
+		</paramset>
+		<paramset id="hmw_switch_ch_values" type="VALUES">
+			<parameter id="STATE" operations="read,write,event" control="SWITCH.STATE">
+				<logical type="boolean" default="false"/>
+				<physical type="integer" interface="command" value_id="LEVEL">
+					<set request="LEVEL_SET"/>
+					<get request="LEVEL_GET" response="INFO_LEVEL"/>
+					<event frame="INFO_LEVEL"/>
+				</physical>
+				<conversion type="boolean_integer" true="200" false="0" threshold="1"/>
+			</parameter>
+			<parameter id="WORKING" operations="read,event" ui_flags="internal">
+				<logical type="boolean" default="false"/>
+				<physical type="integer" interface="command" value_id="STATE_FLAGS">
+					<get request="LEVEL_GET" response="INFO_LEVEL"/>
+					<event frame="INFO_LEVEL"/>
+					<event frame="ACK_STATUS"/>
+				</physical>
+				<conversion type="boolean_integer"/>
+			</parameter>
+			<parameter id="INHIBIT" operations="read,write,event" control="NONE" loopback="true">
+				<logical type="boolean" default="false"/>
+				<physical type="integer" interface="command" value_id="INHIBIT">
+					<set request="SET_LOCK"/>
+				</physical>
+			</parameter>
+			<parameter id="INSTALL_TEST" operations="write" ui_flags="internal">
+				<logical type="action"/>
+				<physical type="integer" interface="command" value_id="TOGGLE_FLAG" no_init="true">
+					<set request="TOGGLE_INSTALL_TEST"/>
+				</physical>
+				<conversion type="toggle" value="STATE" />
+			</parameter>
+		</paramset>
+	</channel>		
+</channels>
+</device>
